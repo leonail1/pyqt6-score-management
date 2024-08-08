@@ -31,7 +31,9 @@ class CustomSortFilterProxyModel(QSortFilterProxyModel):
         for column, values in self.column_filters.items():
             index = self.sourceModel().index(source_row, column, source_parent)
             if index.isValid():
-                if self.sourceModel().data(index) not in values and values:
+                if not values:  # 如果过滤列表为空，不显示任何行
+                    return False
+                if self.sourceModel().data(index) not in values:
                     return False
             else:
                 return False
@@ -43,6 +45,8 @@ class StudentInfoWindow(QDialog):
         super().__init__()
 
         self.student_score_analyzer = StudentScoreAnalyzer(self)
+        # 添加一个字典来存储每列的选中状态
+        self.column_filter_states = {}
 
         self.setWindowTitle("学生信息")
         self.resize(1400, 800)
@@ -123,20 +127,37 @@ class StudentInfoWindow(QDialog):
         dialog.setWindowTitle(f"过滤 {self.model.headerData(column, Qt.Orientation.Horizontal)}")
         layout = QVBoxLayout()
 
+        # 创建按钮布局
+        button_layout = QHBoxLayout()
+        select_all_button = QPushButton("全选")
+        select_none_button = QPushButton("全不选")
+        button_layout.addWidget(select_all_button)
+        button_layout.addWidget(select_none_button)
+        layout.addLayout(button_layout)
+
         list_widget = QListWidget()
         unique_values = sorted(set(self.model.item(row, column).text() for row in range(self.model.rowCount()) if
                                    self.model.item(row, column) is not None))
 
-        select_all_checkbox = QCheckBox("全选/反选")
-        select_all_checkbox.setChecked(True)
-        select_all_checkbox.stateChanged.connect(lambda state: self.toggle_all_items(list_widget, state))
-        layout.addWidget(select_all_checkbox)
+        # 如果这个列还没有保存的状态，初始化为全选
+        if column not in self.column_filter_states:
+            self.column_filter_states[column] = {value: True for value in unique_values}
 
+        # 添加所有选项到列表中，根据保存的状态设置选中状态
         for value in unique_values:
             item = QListWidgetItem(value)
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-            item.setCheckState(Qt.CheckState.Checked)
+            item.setCheckState(Qt.CheckState.Checked if self.column_filter_states[column][value] else Qt.CheckState.Unchecked)
             list_widget.addItem(item)
+
+        # 连接全选按钮
+        select_all_button.clicked.connect(lambda: self.set_all_items(list_widget, True, column))
+
+        # 连接全不选按钮
+        select_none_button.clicked.connect(lambda: self.set_all_items(list_widget, False, column))
+
+        # 连接itemChanged信号到更新字典的函数
+        list_widget.itemChanged.connect(lambda item: self.update_filter_state(column, item))
 
         layout.addWidget(list_widget)
 
@@ -147,14 +168,22 @@ class StudentInfoWindow(QDialog):
         dialog.setLayout(layout)
         dialog.exec()
 
-    def toggle_all_items(self, list_widget, state):
+    def set_all_items(self, list_widget, checked, column):
         for i in range(list_widget.count()):
             item = list_widget.item(i)
-            if item:
-                item.setCheckState(Qt.CheckState.Checked if state == Qt.CheckState.Checked else Qt.CheckState.Unchecked)
+            item.setCheckState(Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked)
+            self.column_filter_states[column][item.text()] = checked
+
+    def update_filter_state(self, column, item):
+        # 更新字典中的状态
+        self.column_filter_states[column][item.text()] = (item.checkState() == Qt.CheckState.Checked)
 
     def apply_filter(self, column, list_widget, dialog):
+        # 获取所有选中的值
         selected_values = [list_widget.item(i).text() for i in range(list_widget.count())
-                           if list_widget.item(i) and list_widget.item(i).checkState() == Qt.CheckState.Checked]
+                           if list_widget.item(i).checkState() == Qt.CheckState.Checked]
+
+        # 应用过滤器
         self.proxy_model.setColumnFilter(column, selected_values)
+
         dialog.accept()
