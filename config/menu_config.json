@@ -1,0 +1,32 @@
+{
+    "menu_structure": [
+        {
+            "name": "&File",
+            "items": [
+                {
+                    "name": "import table file",
+                    "action_id": "import",
+                    "seperator": true,
+                    "submenu": []
+                },
+                {
+                    "name": "Submenu",
+                    "action_id": "",
+                    "seperator": false,
+                    "submenu": [
+                        {
+                            "name": "button2",
+                            "action_id": "",
+                            "seperator": false,
+                            "submenu": []
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "&Edit",
+            "items": []
+        }
+    ]
+}

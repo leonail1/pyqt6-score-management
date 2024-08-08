@@ -1,0 +1,16 @@
+{
+    "actions": [
+        {
+            "action_id": "import",
+            "text": "&Import Table File",
+            "status_tip": "Import a file",
+            "shortcut": "Ctrl+I"
+        },
+        {
+            "action_id": "button2",
+            "text": "Your &button2",
+            "status_tip": "This is your button2",
+            "shortcut": "None"
+        }
+    ]
+}
