@@ -5,7 +5,7 @@ sys.path.append(os.getcwd())
 
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QTableView, QLabel,
-    QHeaderView, QScrollArea, QWidget, QApplication, QPushButton, QListWidget, QCheckBox, QListWidgetItem
+    QHeaderView, QScrollArea, QWidget, QApplication, QPushButton, QListWidget, QCheckBox, QListWidgetItem, QMessageBox
 )
 from PyQt6.QtCore import Qt, QSortFilterProxyModel
 from PyQt6.QtGui import QStandardItemModel, QStandardItem, QFont
@@ -41,28 +41,31 @@ class CustomSortFilterProxyModel(QSortFilterProxyModel):
 
 
 class StudentInfoWindow(QDialog):
-    def __init__(self, chosen_window: str, **kwargs):
+    def __init__(self, chosen_window: str, student_id):
         super().__init__()
 
+        self.data_modified = False
+        self.score_data = None
         self.student_score_analyzer = StudentScoreAnalyzer(self)
-        # 添加一个字典来存储每列的选中状态
+        # 添加一部字典来存储每列的选中状态
         self.column_filter_states = {}
+        self.student_id = student_id
 
         self.setWindowTitle("学生信息")
         self.resize(1400, 800)
-        self.setup_score_list_view_ui(**kwargs)
+        self.setup_score_list_view_ui(self.student_id)
 
     def setup_score_list_view_ui(self, student_id: str):
-        score_data = self.student_score_analyzer.load_score_data(student_id=student_id)
+        self.score_data = self.student_score_analyzer.load_score_data(student_id=student_id)
 
-        if score_data is None:
+        if self.score_data is None:
             error_label = QLabel("无法加载学生数据")
             self.setLayout(QVBoxLayout())
             self.layout().addWidget(error_label)
             return
 
         main_layout = QVBoxLayout()
-        student_info = score_data.get("student_info", {})
+        student_info = self.score_data.get("student_info", {})
         info_label = QLabel(f"姓名: {student_info.get('姓名', 'N/A')}  学号: {student_info.get('学号', 'N/A')}")
         main_layout.addWidget(info_label)
 
@@ -73,7 +76,7 @@ class StudentInfoWindow(QDialog):
         headers = ["课程名", "课程性质", "学分", "学年学期", "等级成绩", "绩点"]
         self.model.setHorizontalHeaderLabels(headers)
 
-        scores = score_data.get("scores", [])
+        scores = self.score_data.get("scores", [])
         for score in scores:
             row_items = [
                 QStandardItem(str(score.get("课程名", ""))),
@@ -103,6 +106,11 @@ class StudentInfoWindow(QDialog):
         self.table.setSortingEnabled(True)
         self.table.setEditTriggers(QTableView.EditTrigger.NoEditTriggers)
 
+        # 设置表格为可编辑
+        self.table.setEditTriggers(QTableView.EditTrigger.DoubleClicked | QTableView.EditTrigger.EditKeyPressed)
+        # 连接数据更改信号到处理函数
+        self.model.dataChanged.connect(self.on_table_view_data_changed)
+
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
 
@@ -121,6 +129,25 @@ class StudentInfoWindow(QDialog):
 
         self.setLayout(QVBoxLayout())
         self.layout().addWidget(scroll_area)
+
+    def on_table_view_data_changed(self, top_left, bottom_right, roles):
+        for row in range(top_left.row(), bottom_right.row() + 1):
+            for column in range(top_left.column(), bottom_right.column() + 1):
+                index = self.model.index(row, column)
+                item = self.model.itemFromIndex(index)
+                if item:
+                    column_name = self.model.headerData(column, Qt.Orientation.Horizontal)
+                    value = item.text()
+
+                    # 更新 score_data 中的值
+                    if 0 <= row < len(self.score_data["scores"]):
+                        self.score_data["scores"][row][column_name] = value
+                        print(f"Data updated in score_data: row {row}, column {column_name}, value {value}")
+                    else:
+                        print(f"Failed to update data: row {row} out of range")
+
+        # 设置一个标志，表示数据已被修改
+        self.data_modified = True
 
     def show_filter_dialog(self, column):
         dialog = QDialog(self)
@@ -147,7 +174,8 @@ class StudentInfoWindow(QDialog):
         for value in unique_values:
             item = QListWidgetItem(value)
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-            item.setCheckState(Qt.CheckState.Checked if self.column_filter_states[column][value] else Qt.CheckState.Unchecked)
+            item.setCheckState(
+                Qt.CheckState.Checked if self.column_filter_states[column][value] else Qt.CheckState.Unchecked)
             list_widget.addItem(item)
 
         # 连接全选按钮
@@ -187,3 +215,25 @@ class StudentInfoWindow(QDialog):
         self.proxy_model.setColumnFilter(column, selected_values)
 
         dialog.accept()
+
+    def closeEvent(self, event):
+        if self.data_modified:
+            reply = QMessageBox.question(
+                self,
+                '保存更改',
+                "数据已被修改。是否保存更改？",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel
+            )
+
+            if reply == QMessageBox.StandardButton.Yes:
+                if self.student_score_analyzer.save_score_data(student_id=self.student_id, score_data=self.score_data):
+                    event.accept()  # 保存成功，允许关闭窗口
+                else:
+                    QMessageBox.warning(self, "保存失败", "保存数据时发生错误。")
+                    event.ignore()  # 保存失败，不关闭窗口
+            elif reply == QMessageBox.StandardButton.No:
+                event.accept()  # 不保存，允许关闭窗口
+            else:  # Cancel
+                event.ignore()  # 取消关闭操作
+        else:
+            event.accept()  # 如果数据没有被修改，直接关闭窗口

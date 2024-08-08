@@ -3,5 +3,5 @@
   <component name="Black">
     <option name="sdkName" value="pyqt6_score_management" />
   </component>
-  <component name="ProjectRootManager" version="2" project-jdk-name="pyqt6_score_management" project-jdk-type="Python SDK" />
+  <component name="ProjectRootManager" version="2" project-jdk-name="pyqt6-score-management-master" project-jdk-type="Python SDK" />
 </project>
