@@ -116,7 +116,8 @@ class FileDealer:
         """
         将新输入的学号保存到user_config.json
         """
-        config_file = "pyqt6_score_management/config/user_config.json"
+        data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'config'))
+        config_file = os.path.join(data_dir, "user_config.json")
         config = {}
 
         if os.path.exists(config_file):
