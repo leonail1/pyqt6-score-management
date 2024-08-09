@@ -15,6 +15,36 @@ from selenium.webdriver.support.ui import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
 from webdriver_manager.microsoft import EdgeChromiumDriverManager
 
+from PyQt6.QtWidgets import QApplication, QDialog, QPushButton, QVBoxLayout, QLabel, QHBoxLayout, QMessageBox
+import sys
+
+
+class LoginDialog(QDialog):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("操作确认")
+        self.setGeometry(100, 100, 400, 150)
+
+        layout = QVBoxLayout()
+
+        label = QLabel("请导航到成绩-全部成绩页面，然后点击确认按钮继续。")
+        label.setWordWrap(True)
+        layout.addWidget(label)
+
+        button_layout = QHBoxLayout()
+
+        confirm_button = QPushButton("确认")
+        confirm_button.clicked.connect(self.accept)
+        button_layout.addWidget(confirm_button)
+
+        cancel_button = QPushButton("取消")
+        cancel_button.clicked.connect(self.reject)
+        button_layout.addWidget(cancel_button)
+
+        layout.addLayout(button_layout)
+
+        self.setLayout(layout)
+
 
 class GradeScraper:
     def __init__(self):
@@ -24,6 +54,10 @@ class GradeScraper:
             "学时", "修读方式", "是否主修", "考试日期", "绩点", "重修重考", "等级成绩类型", "考试类型",
             "开课单位", "是否及格", "是否有效", "特殊原因"
         ]
+        self.app = QApplication.instance() or QApplication(sys.argv)
+
+    def show_message(self, title, message):
+        QMessageBox.information(None, title, message)
 
     def open_browser_and_navigate(self, url, browser_type='chrome'):
         browser_type = browser_type.lower()
@@ -46,10 +80,19 @@ class GradeScraper:
             raise ValueError("不支持的浏览器类型。请选择 'chrome'、'edge' 或 'safari'。")
 
         self.driver.get(url)
-        print(f"{browser_type.capitalize()} 浏览器已打开并导航到指定URL。请手动完成登录操作，然后按回车键继续...")
-        input()  # 等待用户输入
+        # self.show_message("浏览器已启动", f"{browser_type.capitalize()} 浏览器已打开并导航到指定URL。")
 
-    def wait_for_element(self, by, value, timeout=20, element=None):
+        dialog = LoginDialog()
+        result = dialog.exec()
+
+        if result == QDialog.DialogCode.Rejected:
+            self.show_message("操作取消", "操作被用户取消")
+            self.driver.quit()
+            return False
+
+        return True
+
+    def wait_for_element(self, by, value, timeout=10, element=None):
         if element:
             return WebDriverWait(element, timeout).until(
                 EC.presence_of_element_located((by, value))
@@ -139,21 +182,23 @@ class GradeScraper:
                 else:
                     print("没有成功抓取到任何数据")
 
-            print(f"所有表格内容已保存到 {file_path}")
+            self.show_message("保存成功", f"所有表格内容已保存到 {file_path}")
 
         except TimeoutException:
-            print("等待表格加载超时")
+            self.show_message("错误", "等待表格加载超时")
         except Exception as e:
-            print(f"发生错误: {e}")
+            self.show_message("错误", f"发生错误: {e}")
 
     def run(self, url, browser_type='chrome'):
-        self.open_browser_and_navigate(url, browser_type)
-        try:
-            self.scrape_and_save_data()
-        finally:
-            time.sleep(0.5)
-            if self.driver:
-                self.driver.quit()
+        if self.open_browser_and_navigate(url, browser_type):
+            try:
+                self.scrape_and_save_data()
+            finally:
+                time.sleep(0.5)
+                if self.driver:
+                    self.driver.quit()
+        else:
+            self.show_message("程序结束", "操作已取消，程序结束。")
 
 
 def main():
