@@ -1,6 +1,7 @@
 import os
 import time
 import pandas as pd
+from PyQt6.QtCore import QTimer
 from selenium import webdriver
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.chrome.options import Options as ChromeOptions
@@ -15,7 +16,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
 from webdriver_manager.microsoft import EdgeChromiumDriverManager
 
-from PyQt6.QtWidgets import QApplication, QDialog, QPushButton, QVBoxLayout, QLabel, QHBoxLayout, QMessageBox
+from PyQt6.QtWidgets import QApplication, QDialog, QPushButton, QVBoxLayout, QLabel, QHBoxLayout, QMessageBox, QLineEdit
 import sys
 
 
@@ -46,6 +47,58 @@ class LoginDialog(QDialog):
         self.setLayout(layout)
 
 
+class CredentialsDialog(QDialog):
+    def __init__(self, default_username="", default_password=""):
+        super().__init__()
+        self.setWindowTitle("登录信息")
+        self.setGeometry(100, 100, 300, 150)
+
+        layout = QVBoxLayout()
+
+        self.username_input = QLineEdit(self)
+        self.username_input.setPlaceholderText("请输入学号/工号")
+        self.username_input.setText(default_username)
+        layout.addWidget(self.username_input)
+
+        self.password_input = QLineEdit(self)
+        self.password_input.setPlaceholderText("请输入密码")
+        self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.password_input.setText(default_password)
+        layout.addWidget(self.password_input)
+
+        button_layout = QHBoxLayout()
+
+        login_button = QPushButton("登录")
+        login_button.clicked.connect(self.accept)
+        button_layout.addWidget(login_button)
+
+        cancel_button = QPushButton("取消")
+        cancel_button.clicked.connect(self.reject)
+        button_layout.addWidget(cancel_button)
+
+        layout.addLayout(button_layout)
+
+        self.setLayout(layout)
+
+    def get_credentials(self):
+        return self.username_input.text(), self.password_input.text()
+
+class TimedMessageBox(QMessageBox):
+    def __init__(self, timeout=3000, *args, **kwargs):
+        super(TimedMessageBox, self).__init__(*args, **kwargs)
+        self.timeout = timeout
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.close)
+        self.timer.start(self.timeout)
+
+    def showEvent(self, event):
+        self.timer.start(self.timeout)
+        super(TimedMessageBox, self).showEvent(event)
+
+    def closeEvent(self, event):
+        self.timer.stop()
+        super(TimedMessageBox, self).closeEvent(event)
+
 class GradeScraper:
     def __init__(self):
         self.driver = None
@@ -56,8 +109,9 @@ class GradeScraper:
         ]
         self.app = QApplication.instance() or QApplication(sys.argv)
 
-    def show_message(self, title, message):
-        QMessageBox.information(None, title, message)
+    def show_message(self, title, message, timeout=3000):
+        msg_box = TimedMessageBox(timeout=timeout, icon=QMessageBox.Icon.Information, text=message, windowTitle=title)
+        msg_box.exec()
 
     def open_browser_and_navigate(self, url, browser_type='chrome'):
         browser_type = browser_type.lower()
@@ -80,19 +134,43 @@ class GradeScraper:
             raise ValueError("不支持的浏览器类型。请选择 'chrome'、'edge' 或 'safari'。")
 
         self.driver.get(url)
-        # self.show_message("浏览器已启动", f"{browser_type.capitalize()} 浏览器已打开并导航到指定URL。")
 
-        dialog = LoginDialog()
-        result = dialog.exec()
-
-        if result == QDialog.DialogCode.Rejected:
-            self.show_message("操作取消", "操作被用户取消")
-            self.driver.quit()
+    def input_credentials(self, default_username="", default_password=""):
+        dialog = CredentialsDialog(default_username, default_password)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            username, password = dialog.get_credentials()
+        else:
+            self.show_message("操作取消", "登录操作被取消")
             return False
 
-        return True
+        try:
+            # 定位并输入用户名
+            username_input = WebDriverWait(self.driver, 10).until(
+                EC.presence_of_element_located((By.ID, "username"))
+            )
+            username_input.clear()
+            username_input.send_keys(username)
 
-    def wait_for_element(self, by, value, timeout=10, element=None):
+            # 定位并输入密码
+            password_input = WebDriverWait(self.driver, 10).until(
+                EC.presence_of_element_located((By.ID, "password"))
+            )
+            password_input.clear()
+            password_input.send_keys(password)
+
+            # 定位并点击登录按钮
+            login_button = WebDriverWait(self.driver, 10).until(
+                EC.element_to_be_clickable((By.ID, "login_submit"))
+            )
+            login_button.click()
+
+            # self.show_message("登录操作完成", "成功输入用户名和密码并点击登录按钮")
+            return True
+        except Exception as e:
+            self.show_message("登录失败", f"无法完成登录操作: {str(e)}")
+            return False
+
+    def wait_for_element(self, by, value, timeout=20, element=None):
         if element:
             return WebDriverWait(element, timeout).until(
                 EC.presence_of_element_located((by, value))
@@ -189,23 +267,51 @@ class GradeScraper:
         except Exception as e:
             self.show_message("错误", f"发生错误: {e}")
 
-    def run(self, url, browser_type='chrome'):
-        if self.open_browser_and_navigate(url, browser_type):
-            try:
+    def click_login_button(self):
+        try:
+            locators = [
+                (By.ID, "userNameLogin_a"),
+                (By.LINK_TEXT, "账号登录"),
+                (By.CLASS_NAME, "loginFont_a"),
+                (By.XPATH, "//a[contains(text(),'账号登录')]"),
+                (By.CSS_SELECTOR, "a.loginFont_a#userNameLogin_a")
+            ]
+
+            for locator in locators:
+                try:
+                    button = WebDriverWait(self.driver, 5).until(
+                        EC.element_to_be_clickable(locator)
+                    )
+                    button.click()
+                    # self.show_message("操作成功", "成功点击了\"账号登录\"按钮")
+                    return
+                except:
+                    continue
+
+            raise Exception("无法找到或点击\"账号登录\"按钮")
+
+        except Exception as e:
+            self.show_message("操作失败", f"无法点击\"账号登录\"按钮: {str(e)}")
+
+    def run(self, url, browser_type='chrome', default_username="", default_password=""):
+        self.open_browser_and_navigate(url, browser_type)
+        try:
+            self.click_login_button()  # 点击"账号登录"按钮
+            if self.input_credentials(default_username, default_password):
+                self.show_message("提示", "请在20秒之内点击页面上的\"全部成绩\"按钮")
                 self.scrape_and_save_data()
-            finally:
-                time.sleep(0.5)
-                if self.driver:
-                    self.driver.quit()
-        else:
-            self.show_message("程序结束", "操作已取消，程序结束。")
+            else:
+                self.show_message("程序结束", "操作已取消，程序结束。")
+        finally:
+            if self.driver:
+                self.driver.quit()
 
 
 def main():
     url = ("https://jw.xmu.edu.cn/jwapp/sys/cjcx/*default/index.do?t_s=1723166960886&amp_sec_version_=1&gid_"
            "=SXBVK1NhazRDMGZOSHpjMWVFSmhUNGJ1ZFRJUGxaRUxpbGpiTHRNZVYyQ044U0VjRi9BcmZCVzdlek5YL25oZHMzeFU2eEZpVWlEcDJ0L3F1Q3ZxL2c9PQ&EMAP_LANG=zh&THEME=cherry#/cjcx")
     scraper = GradeScraper()
-    scraper.run(url)
+    scraper.run(url, default_username="37220222203691", default_password="mudwa2-kihjar-wipjiF")
 
 
 if __name__ == "__main__":
