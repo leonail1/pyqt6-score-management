@@ -1,12 +1,15 @@
 import json
+import os
 import subprocess
+import sys
+import traceback
 
 import pandas as pd
-import os
-from PyQt6.QtWidgets import QFileDialog, QMessageBox, QInputDialog, QLineEdit
+from PyQt6.QtWidgets import QFileDialog, QMessageBox, QInputDialog, QLineEdit, QDialog, QVBoxLayout, QLabel, \
+    QPushButton, QHBoxLayout
 
-from .student_score_analyzer import StudentScoreAnalyzer
 from my_window.StudentInfoWindow import StudentInfoWindow
+from scraper.scraper import main as run_grade_scraper
 
 
 class FileDealer:
@@ -73,12 +76,8 @@ class FileDealer:
             if reply == QMessageBox.StandardButton.Open:
                 self.load_and_display_student_data(student_id)
             elif reply == QMessageBox.StandardButton.Save:
-                # confirm = QMessageBox.question(self.parent, "确认覆盖",
-                #                                "确定要覆盖现有数据吗？这将删除原有数据。",
-                #                                QMessageBox.StandardButton.Yes |
-                #                                QMessageBox.StandardButton.No)
-                # if confirm == QMessageBox.StandardButton.Yes:
-                self.import_file(student_id_input=student_id)
+                if not self.import_file(student_id_input=student_id):
+                    return  # 如果导入被取消，直接返回
                 QMessageBox.information(self.parent, "成功", "数据已成功覆盖")
             elif reply == QMessageBox.StandardButton.Discard:
                 confirm = QMessageBox.question(self.parent, "确认删除",
@@ -96,7 +95,8 @@ class FileDealer:
                                          QMessageBox.StandardButton.Yes |
                                          QMessageBox.StandardButton.No)
             if reply == QMessageBox.StandardButton.Yes:
-                self.import_file(student_id_input=student_id)
+                if not self.import_file(student_id_input=student_id):
+                    return  # 如果导入被取消，直接返回
                 QMessageBox.information(self.parent, "成功", "新学生数据已导入")
                 self.load_and_display_student_data(student_id)
 
@@ -175,18 +175,6 @@ class FileDealer:
 
         return None, None
 
-    import os
-    import json
-    import pandas as pd
-    from PyQt6.QtWidgets import QMessageBox, QFileDialog
-    import subprocess
-
-    import os
-    import json
-    import pandas as pd
-    from PyQt6.QtWidgets import QMessageBox, QFileDialog
-    import subprocess
-
     def import_file(self, student_id_input: str = None, name_input: str = None):
         """
         导入教务成绩文件
@@ -214,23 +202,56 @@ class FileDealer:
                                              QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                                              QMessageBox.StandardButton.No)
 
-        self.file_from_scraper = False
         if scraper_reply == QMessageBox.StandardButton.Yes:
-            # 运行爬虫脚本
-            scraper_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'scraper', 'scraper.py'))
-            try:
-                subprocess.run(['python', scraper_path], check=True)
-                QMessageBox.information(self.parent, "爬虫完成", "爬虫脚本已成功运行。")
-            except subprocess.CalledProcessError as e:
-                QMessageBox.critical(self.parent, "爬虫错误", f"爬虫脚本运行失败: {str(e)}")
-                return
+            self.file_from_scraper = True
 
+            # 获取当前脚本的目录
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            # 构建爬虫脚本的路径
+            scraper_path = os.path.join(current_dir, '..', 'scraper', 'scraper.py')
+
+            # 创建一个自定义对话框
+            dialog = QDialog(self.parent)
+            dialog.setWindowTitle("爬虫脚本位置")
+            layout = QVBoxLayout()
+
+            # 添加说明文本
+            label = QLabel(f"爬虫脚本位置：\n{scraper_path}\n\n请手动运行该脚本，完成后点击下方的确认按钮。")
+            layout.addWidget(label)
+
+            # 创建一个水平布局来放置按钮
+            button_layout = QHBoxLayout()
+
+            # 添加确认按钮
+            confirm_button = QPushButton("确认已运行爬虫")
+            confirm_button.clicked.connect(dialog.accept)
+            button_layout.addWidget(confirm_button)
+
+            # 添加取消按钮
+            cancel_button = QPushButton("取消")
+            cancel_button.clicked.connect(dialog.reject)
+            button_layout.addWidget(cancel_button)
+
+            # 将按钮布局添加到主布局
+            layout.addLayout(button_layout)
+
+            dialog.setLayout(layout)
+
+            # 显示对话框
+            result = dialog.exec()
+
+            if result != QDialog.DialogCode.Accepted:
+                # 用户取消操作
+                self.file_from_scraper = False
+                QMessageBox.information(self.parent, "操作取消", "您已取消运行爬虫操作。")
+                return False  # 返回 False 表示操作被取消
+
+        if self.file_from_scraper:
             # 读取爬虫生成的文件
             scraper_file = os.path.abspath(
                 os.path.join(os.path.dirname(__file__), '..', 'scraper', 'table_contents', 'all_tables_content.xlsx'))
             try:
                 df = pd.read_excel(scraper_file, sheet_name='总表')
-                self.file_from_scraper = True
             except Exception as e:
                 QMessageBox.critical(self.parent, "Error", f"无法读取爬虫生成的文件: {str(e)}")
                 return
