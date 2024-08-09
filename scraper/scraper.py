@@ -1,16 +1,18 @@
-import hashlib
-from html import unescape
-from xml.sax import parseString
+"""
+运行这个文件，这个文件会打开一个谷歌浏览器窗口
+请使用者手动登录到教务系统的成绩-全部成绩页面，并选择是否主修/是否有效为：全部
+然后，在控制台回车，程序将自动收集成绩信息
+"""
 
+import os
+import time
+import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options as ChromeOptions
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
-import time
-import os
-import pandas as pd
+from selenium.common.exceptions import TimeoutException, NoSuchElementException, StaleElementReferenceException
 
 
 def open_browser_and_navigate(url):
@@ -25,11 +27,19 @@ def open_browser_and_navigate(url):
     return driver
 
 
+def wait_for_element(driver, by, value, timeout=20):
+    return WebDriverWait(driver, timeout).until(
+        EC.presence_of_element_located((by, value))
+    )
+
+
+def get_element_text(element):
+    return element.get_attribute('textContent').strip()
+
+
 def scrape_and_save_data(driver, valid_column_headers: list):
     try:
-        WebDriverWait(driver, 20).until(
-            EC.presence_of_element_located((By.XPATH, '//*[starts-with(@id, "contentqb-index-table-")]'))
-        )
+        wait_for_element(driver, By.XPATH, '//*[starts-with(@id, "contentqb-index-table-")]')
 
         content_elements = driver.find_elements(By.XPATH, '//*[starts-with(@id, "contentqb-index-table-")]')
 
@@ -40,20 +50,19 @@ def scrape_and_save_data(driver, valid_column_headers: list):
 
         for i, content_element in enumerate(content_elements, 1):
             try:
-                column_header_element = content_element.find_element(By.XPATH,
-                                                                     './/*[starts-with(@id, "columntableqb-index-table-")]')
+                column_header_element = wait_for_element(content_element, By.XPATH,
+                                                         './/*[starts-with(@id, "columntableqb-index-table-")]')
                 column_headers = column_header_element.find_elements(By.XPATH, './/div[@role="columnheader"]')
 
-                column_titles = [header.find_element(By.TAG_NAME, 'span').get_attribute('title') for header in
+                column_titles = [get_element_text(header.find_element(By.TAG_NAME, 'span')) for header in
                                  column_headers]
 
-                # 只保留有效的列
                 valid_indices = [i for i, title in enumerate(column_titles) if title in valid_column_headers]
                 valid_titles = [title for title in column_titles if title in valid_column_headers]
 
-                content_table_element = content_element.find_element(By.XPATH,
-                                                                     './/*[starts-with(@id, "contenttableqb-index-table-")]')
-                tbody_element = content_table_element.find_element(By.TAG_NAME, 'tbody')
+                content_table_element = wait_for_element(content_element, By.XPATH,
+                                                         './/*[starts-with(@id, "contenttableqb-index-table-")]')
+                tbody_element = wait_for_element(content_table_element, By.TAG_NAME, 'tbody')
                 content_rows = tbody_element.find_elements(By.TAG_NAME, 'tr')
 
                 data = []
@@ -62,8 +71,8 @@ def scrape_and_save_data(driver, valid_column_headers: list):
                     row_data = []
                     for i in valid_indices:
                         if i < len(cells):
-                            a_element = cells[i].find_element(By.TAG_NAME, 'a')
-                            row_data.append(a_element.text.strip())
+                            cell_text = get_element_text(cells[i])
+                            row_data.append(cell_text)
                         else:
                             row_data.append('')
                     data.append(row_data)
@@ -74,8 +83,6 @@ def scrape_and_save_data(driver, valid_column_headers: list):
 
                 print(f"表格 {i} 的内容已保存到 {file_path}")
 
-            except NoSuchElementException as e:
-                print(f"处理元素 {i} 时没有找到指定的元素: {e}")
             except Exception as e:
                 print(f"处理元素 {i} 时发生错误: {e}")
 
@@ -83,31 +90,6 @@ def scrape_and_save_data(driver, valid_column_headers: list):
         print("等待表格加载超时")
     except Exception as e:
         print(f"发生错误: {e}")
-
-
-def get_column_titles(driver):
-    try:
-        content_elements = driver.find_elements(By.XPATH, '//*[@id="contentqb-index-table-"]')
-        all_titles = []
-
-        for content in content_elements:
-            header_elements = content.find_elements(By.XPATH, './/div[@role="columnheader"]')
-            titles = []
-            for header in header_elements:
-                span = header.find_element(By.TAG_NAME, 'span')
-                title = span.get_attribute('title')
-                titles.append(title)
-
-            all_titles.append(titles)
-
-        print(f"找到 {len(all_titles)} 个表格的列标题")
-        for i, titles in enumerate(all_titles, 1):
-            print(f"表格 {i}: 找到 {len(titles)} 个列标题")
-
-        return all_titles
-    except Exception as e:
-        print(f"获取列标题时发生错误: {e}")
-        return []
 
 
 def main():
