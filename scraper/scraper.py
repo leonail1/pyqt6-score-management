@@ -83,6 +83,7 @@ class CredentialsDialog(QDialog):
     def get_credentials(self):
         return self.username_input.text(), self.password_input.text()
 
+
 class TimedMessageBox(QMessageBox):
     def __init__(self, timeout=3000, *args, **kwargs):
         super(TimedMessageBox, self).__init__(*args, **kwargs)
@@ -99,14 +100,11 @@ class TimedMessageBox(QMessageBox):
         self.timer.stop()
         super(TimedMessageBox, self).closeEvent(event)
 
+
 class GradeScraper:
-    def __init__(self):
+    def __init__(self, valid_column_headers):
         self.driver = None
-        self.column_headers = [
-            "学年学期", "课程名", "课程号", "总成绩", "课序号", "课程类别", "课程性质", "学分",
-            "学时", "修读方式", "是否主修", "考试日期", "绩点", "重修重考", "等级成绩类型", "考试类型",
-            "开课单位", "是否及格", "是否有效", "特殊原因"
-        ]
+        self.column_headers = valid_column_headers
         self.app = QApplication.instance() or QApplication(sys.argv)
 
     def show_message(self, title, message, timeout=3000):
@@ -310,7 +308,12 @@ class GradeScraper:
 def main():
     url = ("https://jw.xmu.edu.cn/jwapp/sys/cjcx/*default/index.do?t_s=1723166960886&amp_sec_version_=1&gid_"
            "=SXBVK1NhazRDMGZOSHpjMWVFSmhUNGJ1ZFRJUGxaRUxpbGpiTHRNZVYyQ044U0VjRi9BcmZCVzdlek5YL25oZHMzeFU2eEZpVWlEcDJ0L3F1Q3ZxL2c9PQ&EMAP_LANG=zh&THEME=cherry#/cjcx")
-    scraper = GradeScraper()
+    valid_column_headers = [
+        "学年学期", "课程名", "课程号", "总成绩", "课序号", "课程类别", "课程性质", "学分",
+        "学时", "修读方式", "是否主修", "考试日期", "绩点", "重修重考", "等级成绩类型", "考试类型",
+        "开课单位", "是否及格", "是否有效"
+    ]
+    scraper = GradeScraper(valid_column_headers)
     scraper.run(url, default_username="37220222203691", default_password="mudwa2-kihjar-wipjiF")
 
 
