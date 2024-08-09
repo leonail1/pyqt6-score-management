@@ -1,15 +1,8 @@
-"""
-运行这个文件，这个文件会打开一个谷歌浏览器窗口
-请使用者手动登录到教务系统的成绩-全部成绩页面，并选择是否主修/是否有效为：全部
-然后，在控制台回车，程序将自动收集成绩信息
-"""
-
 import os
 import time
-
 import pandas as pd
 from selenium import webdriver
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from selenium.webdriver.chrome.options import Options as ChromeOptions
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
@@ -34,12 +27,6 @@ def wait_for_element(driver, by, value, timeout=20):
     )
 
 
-import pandas as pd
-from openpyxl import load_workbook
-from selenium.webdriver.common.by import By
-from selenium.common.exceptions import NoSuchElementException, TimeoutException
-
-
 def get_element_text(element):
     return element.get_attribute('textContent').strip()
 
@@ -51,7 +38,17 @@ def scrape_and_save_data(driver, valid_column_headers: list):
         print(f"找到 {len(content_elements)} 个符合条件的元素")
 
         all_data = []
-        file_path = "table_contents/all_tables_content.xlsx"
+        directory = "table_contents"
+        file_name = "all_tables_content.xlsx"
+        file_path = os.path.join(os.path.realpath(__file__), directory, file_name)
+
+        # 确保目录存在
+        os.makedirs(directory, exist_ok=True)
+
+        # 如果文件已存在，删除它（覆盖写入）
+        if os.path.exists(file_path):
+            os.remove(file_path)
+            print(f"已删除现有文件: {file_path}")
 
         with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
             for i, content_element in enumerate(content_elements, 1):
@@ -84,7 +81,9 @@ def scrape_and_save_data(driver, valid_column_headers: list):
 
                     df = pd.DataFrame(data, columns=valid_titles)
 
-                    # 使用"学年学期"列的第一个元素作为工作表名
+                    # 删除重复列
+                    df = df.T.drop_duplicates().T
+
                     sheet_name = df["学年学期"].iloc[0] if "学年学期" in df.columns and not df.empty else f"Sheet_{i}"
                     df.to_excel(writer, sheet_name=sheet_name, index=False)
 
@@ -96,6 +95,10 @@ def scrape_and_save_data(driver, valid_column_headers: list):
 
             # 创建总表
             total_df = pd.concat(all_data, ignore_index=True)
+
+            # 删除总表中的重复列
+            total_df = total_df.T.drop_duplicates().T
+
             total_df.to_excel(writer, sheet_name='总表', index=False)
             print("所有数据已合并到'总表'工作表")
 

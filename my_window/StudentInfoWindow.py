@@ -73,52 +73,51 @@ class StudentInfoWindow(QDialog):
         self.proxy_model = CustomSortFilterProxyModel()
         self.proxy_model.setSourceModel(self.model)
 
-        headers = ["课程名", "课程性质", "学分", "学年学期", "等级成绩", "绩点"]
-        self.model.setHorizontalHeaderLabels(headers)
-
         scores = self.score_data.get("scores", [])
-        for score in scores:
-            row_items = [
-                QStandardItem(str(score.get("课程名", ""))),
-                QStandardItem(str(score.get("课程性质", ""))),
-                QStandardItem(str(score.get("学分", ""))),
-                QStandardItem(str(score.get("学年学期", ""))),
-                QStandardItem(str(score.get("等级成绩", ""))),
-                QStandardItem(str(score.get("绩点", "")))
-            ]
-            # 设置每个单元格的对齐方式
-            for item in row_items:
-                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.model.appendRow(row_items)
+        if scores:
+            # 动态获取所有列名
+            headers = list(scores[0].keys())
+            self.model.setHorizontalHeaderLabels(headers)
 
-        filter_layout = QHBoxLayout()
-        self.filter_buttons = []
-        for column in range(len(headers)):
-            button = QPushButton(f"过滤 {headers[column]}")
-            button.clicked.connect(lambda checked, col=column: self.show_filter_dialog(col))
-            filter_layout.addWidget(button)
-            self.filter_buttons.append(button)
+            for score in scores:
+                row_items = [QStandardItem(str(score.get(header, ""))) for header in headers]
+                # 设置每个单元格的对齐方式
+                for item in row_items:
+                    item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                self.model.appendRow(row_items)
 
-        main_layout.addLayout(filter_layout)
+            filter_layout = QHBoxLayout()
+            self.filter_buttons = []
+            for column, header in enumerate(headers):
+                button = QPushButton(f"过滤 {header}")
+                button.clicked.connect(lambda checked, col=column: self.show_filter_dialog(col))
+                filter_layout.addWidget(button)
+                self.filter_buttons.append(button)
 
-        self.table = QTableView()
-        self.table.setModel(self.proxy_model)
-        self.table.setSortingEnabled(True)
-        self.table.setEditTriggers(QTableView.EditTrigger.NoEditTriggers)
+            main_layout.addLayout(filter_layout)
 
-        # 设置表格为可编辑
-        self.table.setEditTriggers(QTableView.EditTrigger.DoubleClicked | QTableView.EditTrigger.EditKeyPressed)
-        # 连接数据更改信号到处理函数
-        self.model.dataChanged.connect(self.on_table_view_data_changed)
+            self.table = QTableView()
+            self.table.setModel(self.proxy_model)
+            self.table.setSortingEnabled(True)
+            self.table.setEditTriggers(QTableView.EditTrigger.NoEditTriggers)
 
-        header = self.table.horizontalHeader()
-        header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+            # 设置表格为可编辑
+            self.table.setEditTriggers(QTableView.EditTrigger.DoubleClicked | QTableView.EditTrigger.EditKeyPressed)
+            # 连接数据更改信号到处理函数
+            self.model.dataChanged.connect(self.on_table_view_data_changed)
 
-        # 设置表头的对齐方式
-        for i in range(self.model.columnCount()):
-            self.table.horizontalHeader().setDefaultAlignment(Qt.AlignmentFlag.AlignCenter)
+            header = self.table.horizontalHeader()
+            header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)  # 自适应内容宽度
+            header.setStretchLastSection(True)  # 确保最后一列填充剩余空间
 
-        main_layout.addWidget(self.table)
+            # 设置表头的对齐方式
+            for i in range(self.model.columnCount()):
+                self.table.horizontalHeader().setDefaultAlignment(Qt.AlignmentFlag.AlignCenter)
+
+            main_layout.addWidget(self.table)
+        else:
+            error_label = QLabel("没有成绩数据")
+            main_layout.addWidget(error_label)
 
         container = QWidget()
         container.setLayout(main_layout)
@@ -126,6 +125,10 @@ class StudentInfoWindow(QDialog):
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
         scroll_area.setWidget(container)
+
+        # 确保滚动区域可以横向和纵向滚动
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
 
         self.setLayout(QVBoxLayout())
         self.layout().addWidget(scroll_area)

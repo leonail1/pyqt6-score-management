@@ -1,4 +1,6 @@
 import json
+import subprocess
+
 import pandas as pd
 import os
 from PyQt6.QtWidgets import QFileDialog, QMessageBox, QInputDialog, QLineEdit
@@ -9,6 +11,7 @@ from my_window.StudentInfoWindow import StudentInfoWindow
 
 class FileDealer:
     def __init__(self, parent):
+        self.file_from_scraper = False
         self.student_score_analyzer = None
         self.parent = parent
 
@@ -70,13 +73,13 @@ class FileDealer:
             if reply == QMessageBox.StandardButton.Open:
                 self.load_and_display_student_data(student_id)
             elif reply == QMessageBox.StandardButton.Save:
-                confirm = QMessageBox.question(self.parent, "确认覆盖",
-                                               "确定要覆盖现有数据吗？这将删除原有数据。",
-                                               QMessageBox.StandardButton.Yes |
-                                               QMessageBox.StandardButton.No)
-                if confirm == QMessageBox.StandardButton.Yes:
-                    self.import_file(student_id_input=student_id)
-                    QMessageBox.information(self.parent, "成功", "数据已成功覆盖")
+                # confirm = QMessageBox.question(self.parent, "确认覆盖",
+                #                                "确定要覆盖现有数据吗？这将删除原有数据。",
+                #                                QMessageBox.StandardButton.Yes |
+                #                                QMessageBox.StandardButton.No)
+                # if confirm == QMessageBox.StandardButton.Yes:
+                self.import_file(student_id_input=student_id)
+                QMessageBox.information(self.parent, "成功", "数据已成功覆盖")
             elif reply == QMessageBox.StandardButton.Discard:
                 confirm = QMessageBox.question(self.parent, "确认删除",
                                                "确定要删除该学生数据吗？此操作不可撤销。",
@@ -172,12 +175,23 @@ class FileDealer:
 
         return None, None
 
+    import os
+    import json
+    import pandas as pd
+    from PyQt6.QtWidgets import QMessageBox, QFileDialog
+    import subprocess
+
+    import os
+    import json
+    import pandas as pd
+    from PyQt6.QtWidgets import QMessageBox, QFileDialog
+    import subprocess
+
     def import_file(self, student_id_input: str = None, name_input: str = None):
         """
         导入教务成绩文件
         """
         name, student_id = self.input_student_info(student_id_input=student_id_input, name_input=name_input)
-        # print(name, student_id)
         if not name or not student_id:
             return
 
@@ -194,66 +208,100 @@ class FileDealer:
                 QMessageBox.information(self.parent, "操作取消", "导入操作已取消。")
                 return
 
-        file_name, _ = QFileDialog.getOpenFileName(
-            self.parent,
-            "Import Table File",
-            "",
-            "Table Files (*.xls *.xlsx)"
-        )
+        # 询问用户是否使用爬虫导入
+        scraper_reply = QMessageBox.question(self.parent, '选择导入方式',
+                                             "是否使用爬虫导入数据？",
+                                             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                                             QMessageBox.StandardButton.No)
 
-        if file_name:
+        self.file_from_scraper = False
+        if scraper_reply == QMessageBox.StandardButton.Yes:
+            # 运行爬虫脚本
+            scraper_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'scraper', 'scraper.py'))
             try:
-                # 读取Excel文件
-                df = pd.read_excel(file_name)
+                subprocess.run(['python', scraper_path], check=True)
+                QMessageBox.information(self.parent, "爬虫完成", "爬虫脚本已成功运行。")
+            except subprocess.CalledProcessError as e:
+                QMessageBox.critical(self.parent, "爬虫错误", f"爬虫脚本运行失败: {str(e)}")
+                return
 
-                # 定义必需的列名和可选的列名
-                required_columns = ['课程名', '课程性质', '学分']
-                optional_columns = ['学年学期', '等级成绩', '绩点']
-
-                # 检查必需的列是否都存在
-                missing_columns = [col for col in required_columns if col not in df.columns]
-                if missing_columns:
-                    raise ValueError(f"缺少必需的列：{', '.join(missing_columns)}")
-
-                # 检查哪些可选的列在文件中存在
-                found_optional_columns = [col for col in optional_columns if col in df.columns]
-
-                # 所有要处理的列
-                columns_to_process = required_columns + found_optional_columns
-
-                # 从文件中提取数据并转置
-                data = {}
-                for col in columns_to_process:
-                    if col == '等级成绩':
-                        # 将等级成绩转换为字符串，空值转为空字符串
-                        data[col] = df[col].fillna('').astype(str).tolist()
-                    else:
-                        # 其他列保持原样，但空值转为空字符串
-                        data[col] = df[col].fillna('').tolist()
-
-                transposed_data = [dict(zip(data.keys(), row)) for row in zip(*data.values())]
-
-                # 创建用户信息字典
-                user_info = {
-                    "姓名": name,
-                    "学号": student_id
-                }
-
-                # 将用户信息添加到转置数据的开头
-                transposed_data.insert(0, user_info)
-
-                # 确保 '../data' 目录存在
-                os.makedirs(data_dir, exist_ok=True)
-
-                with open(json_file_name, 'w', encoding='utf-8') as f:
-                    json.dump(transposed_data, f, ensure_ascii=False, indent=4)
-
-                # 显示成功消息
-                success_message = f"成功导入文件并保存为JSON。\n保存位置：{json_file_name}\n必需列：{', '.join(required_columns)}\n可选列：{', '.join(found_optional_columns)}\n用户信息已添加到文件开头。"
-                QMessageBox.information(self.parent, "Success", success_message)
-
+            # 读取爬虫生成的文件
+            scraper_file = os.path.abspath(
+                os.path.join(os.path.dirname(__file__), '..', 'scraper', 'table_contents', 'all_tables_content.xlsx'))
+            try:
+                df = pd.read_excel(scraper_file, sheet_name='总表')
+                self.file_from_scraper = True
             except Exception as e:
-                # 显示错误消息
-                QMessageBox.critical(self.parent, "Error", f"无法导入文件: {str(e)}")
+                QMessageBox.critical(self.parent, "Error", f"无法读取爬虫生成的文件: {str(e)}")
+                return
         else:
-            QMessageBox.information(self.parent, "Information", "导入已取消")
+            # 原有的文件选择逻辑
+            file_name, _ = QFileDialog.getOpenFileName(
+                self.parent,
+                "Import Table File",
+                "",
+                "Table Files (*.xls *.xlsx)"
+            )
+
+            if not file_name:
+                QMessageBox.information(self.parent, "Information", "导入已取消")
+                return
+
+            try:
+                df = pd.read_excel(file_name)
+            except Exception as e:
+                QMessageBox.critical(self.parent, "Error", f"无法导入文件: {str(e)}")
+                return
+
+        # 特殊处理的列
+        special_columns = ['总成绩', '课序号', '学分', '学时', '绩点', '等级成绩']
+
+        def convert_to_float(value):
+            if pd.isna(value):
+                return -1.0
+            if isinstance(value, str) and value.strip() == '合格':
+                return -1.0
+            try:
+                return float(value)
+            except ValueError:
+                return -1.0
+
+        # 处理所有列
+        data = {}
+        for col in df.columns:
+            if col in special_columns:
+                # 特殊处理这些列
+                data[col] = df[col].apply(convert_to_float).tolist()
+            else:
+                # 其他列保持原样，但空值转为空字符串
+                data[col] = df[col].fillna('').astype(str).tolist()
+
+        # 根据数据来源决定是否转置数据
+        if not self.file_from_scraper:
+            transposed_data = [dict(zip(data.keys(), row)) for row in zip(*data.values())]
+        else:
+            transposed_data = df.to_dict('records')
+
+        # 对特殊列进行排序
+        # for col in special_columns:
+        #     if col in data:
+        #         transposed_data.sort(key=lambda x: x.get(col, -1), reverse=True)
+
+        # 创建用户信息字典
+        user_info = {
+            "姓名": name,
+            "学号": student_id
+        }
+
+        # 将用户信息添加到数据的开头
+        transposed_data.insert(0, user_info)
+
+        # 确保 '../data' 目录存在
+        os.makedirs(data_dir, exist_ok=True)
+
+        with open(json_file_name, 'w', encoding='utf-8') as f:
+            json.dump(transposed_data, f, ensure_ascii=False, indent=4)
+
+        # 显示成功消息
+        success_message = f"成功导入文件并保存为JSON。\n保存位置：{json_file_name}\n导入的列：{', '.join(df.columns)}\n特殊处理的列：{', '.join(special_columns)}\n用户信息已添加到文件开头。"
+        QMessageBox.information(self.parent, "Success", success_message)

@@ -31,12 +31,6 @@ class StudentScoreAnalyzer():
             if "姓名" not in student_info or "学号" not in student_info:
                 raise ValueError("Missing student information")
 
-            # 验证成绩信息
-            required_keys = ["课程名", "课程性质", "学分", "学年学期", "等级成绩", "绩点"]
-            for score in scores:
-                if not all(key in score for key in required_keys):
-                    raise ValueError("Missing score information")
-
             self.score_data = {
                 "student_info": student_info,
                 "scores": scores
