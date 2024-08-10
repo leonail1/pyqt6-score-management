@@ -1,68 +1,137 @@
+"""
+这个模块实现了一个学位进度展示工具的图形用户界面。
+主要功能包括：
+1. 从JSON文件加载课程信息数据
+2. 展示各类课程的学分信息和完成进度
+3. 显示课程详细信息的表格
+
+该模块使用PyQt6来创建图形界面。
+"""
+
 import json
 import os.path
 import sys
-from PyQt6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
-                             QTableWidget, QTableWidgetItem, QProgressBar,
-                             QLabel, QScrollArea, QSizePolicy, QPushButton, QFrame, QHeaderView, QMessageBox)
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QPalette, QColor
-from degree_process.docx_process import DocxProcess
+
+from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtWidgets import (QProgressBar,
+                             QLabel, QMessageBox)
+from PyQt6.QtWidgets import (QTableWidget, QTableWidgetItem, QHeaderView, QSizePolicy,
+                             QDialog, QVBoxLayout, QPushButton, QScrollArea, QWidget,
+                             QFrame, QApplication)
 
 
 class CourseInfoWidget(QWidget):
+    """
+    显示单个课程类型信息的小部件。
+    包括课程类型、必修学分、选修学分和完成进度条。
+    """
+
     def __init__(self, info):
+        """
+        初始化CourseInfoWidget。
+
+        :param info: 包含课程类型、必修学分和选修学分的元组
+        """
         super().__init__()
+
         layout = QVBoxLayout()
 
         course_type, required, elective = info
+
         layout.addWidget(QLabel(f"课程类型: {course_type}", styleSheet="font-weight: bold; font-size: 16px;"))
         layout.addWidget(QLabel(f"必修学分: {required}"))
         layout.addWidget(QLabel(f"选修学分: {elective}"))
 
         progress = QProgressBar()
         progress.setMaximum(required + elective)
-        progress.setValue(required)  # 假设当前完成的是必修学分
+        progress.setValue(required)
         layout.addWidget(progress)
 
         self.setLayout(layout)
 
 
 class CourseTableWidget(QTableWidget):
+    """
+    显示课程详细信息的表格小部件。
+    """
+
     def __init__(self, header, data):
         super().__init__()
-        self.setColumnCount(len(header))
-        self.setHorizontalHeaderLabels(header)
-        self.setRowCount(len(data))
 
+        desired_columns = ['课程名称', '修读形式', '学分', '总学时', '开课学年', '开课学期']
+
+        column_indices = [header.index(col) for col in desired_columns if col in header]
+
+        self.setColumnCount(len(column_indices))
+        self.setHorizontalHeaderLabels([header[i] for i in column_indices])
+
+        self.setRowCount(len(data))
         for row, row_data in enumerate(data):
-            for col, cell_data in enumerate(row_data):
-                item = QTableWidgetItem(str(cell_data))
-                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)  # 居中显示
-                self.setItem(row, col, item)
+            for col, index in enumerate(column_indices):
+                if index < len(row_data):
+                    item = QTableWidgetItem(str(row_data[index]))
+                    item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                    self.setItem(row, col, item)
 
         self.setSortingEnabled(True)
-        self.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)  # 设置表格为只读
+        self.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
 
-        # 调整表格大小以适应所有内容
-        self.resizeColumnsToContents()
-        self.resizeRowsToContents()
-
-        # 设置最小列宽和行高
-        for col in range(self.columnCount()):
-            self.setColumnWidth(col, max(30, self.columnWidth(col)))
-        for row in range(self.rowCount()):
-            self.setRowHeight(row, max(15, self.rowHeight(row)))
-
-        # 设置表头样式
-        self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-
-        # 设置表格的最小高度
-        self.setMinimumHeight(150)  # 设置最小高度为150像素
-
+        self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.setMinimumHeight(150)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
 
-class MainWindow(QWidget):
+class TableDialog(QDialog):
+    """
+    显示课程详细信息表格的对话框。
+    """
+
+    def __init__(self, parent, table_widget, course_type):
+        super().__init__(parent)
+        self.setWindowTitle(f"{course_type}详情")
+        self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+
+        layout = QVBoxLayout(self)
+
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidget(table_widget)
+        self.scroll_area.setWidgetResizable(True)
+        layout.addWidget(self.scroll_area)
+
+        close_button = QPushButton("关闭")
+        close_button.clicked.connect(self.close)
+        close_button.setDefault(True)
+        layout.addWidget(close_button)
+
+        self.setLayout(layout)
+        self.resize(800, 600)
+
+        self.table_widget = table_widget
+
+        QTimer.singleShot(0, self.adjust_column_widths)
+
+    def adjust_column_widths(self):
+        self.table_widget.resizeColumnsToContents()
+
+        total_width = sum(self.table_widget.columnWidth(i) for i in range(self.table_widget.columnCount()))
+        available_width = self.scroll_area.viewport().width() - self.table_widget.verticalScrollBar().width()
+
+        if total_width > available_width:
+            self.table_widget.setMinimumWidth(total_width)
+        else:
+            self.table_widget.setMinimumWidth(available_width)
+
+        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.scroll_area.updateGeometry()
+
+
+class DegreeProgressShowMainWindow(QWidget):
+    """
+    学位进度展示的主窗口。
+    """
+
     def __init__(self, data):
         super().__init__()
         self.setWindowTitle("课程信息")
@@ -70,41 +139,32 @@ class MainWindow(QWidget):
 
         main_layout = QVBoxLayout()
 
-        # 创建一个滚动区域来容纳所有内容
         scroll_area = QScrollArea()
         scroll_content = QWidget()
         scroll_layout = QVBoxLayout(scroll_content)
 
-        self.table_widgets = []  # 存储所有表格部件
+        self.table_widgets = []
 
         for i, item in enumerate(data):
-            # 创建一个框架来包含每个课程类型的所有内容
             frame = QFrame()
             frame.setFrameShape(QFrame.Shape.StyledPanel)
             frame.setFrameShadow(QFrame.Shadow.Raised)
             frame_layout = QVBoxLayout(frame)
 
-            # 创建课程信息部件
             info_widget = CourseInfoWidget(item['info'])
             frame_layout.addWidget(info_widget)
 
-            # 创建"显示详情"按钮
             show_details_button = QPushButton(f"显示{item['info'][0]}详情")
             frame_layout.addWidget(show_details_button)
 
-            # 创建表格部件（初始隐藏）
             table_widget = CourseTableWidget(item['table']['header'], item['table']['data'])
-            table_widget.hide()
-            frame_layout.addWidget(table_widget)
-            self.table_widgets.append(table_widget)
+            self.table_widgets.append((table_widget, item['info'][0]))
 
-            # 连接按钮点击事件
             show_details_button.clicked.connect(
-                lambda checked, w=table_widget, b=show_details_button, t=item['info'][0]: self.toggle_table(w, b, t))
+                lambda checked, w=table_widget, t=item['info'][0]: self.show_table_dialog(w, t))
 
             scroll_layout.addWidget(frame)
 
-            # 在最后一个项目之前添加分隔线
             if i < len(data) - 1:
                 line = QFrame()
                 line.setFrameShape(QFrame.Shape.HLine)
@@ -118,24 +178,38 @@ class MainWindow(QWidget):
         main_layout.addWidget(scroll_area)
         self.setLayout(main_layout)
 
-    def toggle_table(self, table_widget, button, course_type):
-        if table_widget.isVisible():
-            table_widget.hide()
-            button.setText(f"显示{course_type}详情")
-        else:
-            table_widget.show()
-            button.setText(f"隐藏{course_type}详情")
+    def show_table_dialog(self, table_widget, course_type):
+        dialog = TableDialog(self, table_widget, course_type)
+        dialog.setModal(True)
+        dialog.show()
 
 
 class DataManager:
+    """
+    管理数据加载和错误处理的类。
+    """
+
     def __init__(self):
+        """
+        初始化DataManager。
+        """
         self.data = None
         self.file_path = None
 
     def set_file_path(self, file_path):
+        """
+        设置数据文件的路径。
+
+        :param file_path: 数据文件的路径
+        """
         self.file_path = file_path
 
     def load_data(self):
+        """
+        从文件加载数据。
+
+        :return: 如果加载成功返回True，否则返回False
+        """
         if not self.file_path:
             self.show_error_dialog("路径错误", "数据文件路径未设置。")
             return False
@@ -154,6 +228,12 @@ class DataManager:
 
     @staticmethod
     def show_error_dialog(error_type, error_message):
+        """
+        显示错误对话框。
+
+        :param error_type: 错误类型
+        :param error_message: 错误消息
+        """
         error_dialog = QMessageBox()
         error_dialog.setIcon(QMessageBox.Icon.Critical)
         error_dialog.setText(error_type)
@@ -162,23 +242,25 @@ class DataManager:
         error_dialog.exec()
 
     def get_data(self):
+        """
+        获取加载的数据。
+
+        :return: 加载的数据
+        """
         return self.data
+
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
 
-    # 创建 DataManager 实例
     data_manager = DataManager()
 
-    # 设置数据文件路径
     current_dir = os.path.dirname(os.path.abspath(__file__))
     data_file_path = os.path.join(current_dir, "..", "config", "degree_progress.json")
     data_manager.set_file_path(data_file_path)
 
-    # 尝试加载数据
     if data_manager.load_data():
-        # 数据加载成功，创建并显示主窗口
-        window = MainWindow(data_manager.get_data())
+        window = DegreeProgressShowMainWindow(data_manager.get_data())
         window.show()
         sys.exit(app.exec())
     else:
