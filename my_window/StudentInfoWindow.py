@@ -11,6 +11,7 @@ from PyQt6.QtCore import Qt, QSortFilterProxyModel
 from PyQt6.QtGui import QStandardItemModel, QStandardItem, QFont
 
 from file_import.student_score_analyzer import StudentScoreAnalyzer
+from .DegreeProgressShow import create_degree_progress_window
 
 
 class CustomSortFilterProxyModel(QSortFilterProxyModel):
@@ -47,7 +48,6 @@ class StudentInfoWindow(QDialog):
         self.data_modified = False
         self.score_data = None
         self.student_score_analyzer = StudentScoreAnalyzer(self)
-        # 添加一部字典来存储每列的选中状态
         self.column_filter_states = {}
         self.student_id = student_id
 
@@ -130,8 +130,31 @@ class StudentInfoWindow(QDialog):
         scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
 
-        self.setLayout(QVBoxLayout())
-        self.layout().addWidget(scroll_area)
+        # 创建按钮布局
+        button_layout = QHBoxLayout()
+
+        # 添加"显示学位进度"按钮
+        show_progress_button = QPushButton("显示学位进度")
+        show_progress_button.clicked.connect(self.show_degree_progress)
+        button_layout.addWidget(show_progress_button)
+
+        # 添加"关闭窗口"按钮
+        close_button = QPushButton("关闭窗口")
+        close_button.clicked.connect(self.close)
+        close_button.setDefault(True)  # 设置为默认按钮
+        button_layout.addWidget(close_button)
+
+        # 创建主布局
+        main_layout = QVBoxLayout()
+        main_layout.addWidget(scroll_area)
+        main_layout.addLayout(button_layout)
+
+        self.setLayout(main_layout)
+
+    def show_degree_progress(self):
+        progress_window = create_degree_progress_window(self)
+        if progress_window:
+            progress_window.show()
 
     def on_table_view_data_changed(self, top_left, bottom_right, roles):
         for row in range(top_left.row(), bottom_right.row() + 1):

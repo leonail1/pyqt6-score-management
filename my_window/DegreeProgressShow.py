@@ -12,9 +12,9 @@ import json
 import os.path
 import sys
 
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtWidgets import (QProgressBar,
-                             QLabel, QMessageBox)
+                             QLabel, QMessageBox, QHBoxLayout)
 from PyQt6.QtWidgets import (QTableWidget, QTableWidgetItem, QHeaderView, QSizePolicy,
                              QDialog, QVBoxLayout, QPushButton, QScrollArea, QWidget,
                              QFrame, QApplication)
@@ -188,6 +188,19 @@ class DegreeProgressShowMainWindow(QWidget):
         scroll_area.setWidgetResizable(True)
 
         main_layout.addWidget(scroll_area)
+
+        # 添加关闭按钮
+        close_button = QPushButton("关闭窗口")
+        close_button.clicked.connect(self.close)
+        close_button.setDefault(True)  # 设置为默认按钮
+
+        # 创建按钮布局
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()  # 添加弹性空间，使按钮靠右对齐
+        button_layout.addWidget(close_button)
+
+        main_layout.addLayout(button_layout)
+
         self.setLayout(main_layout)
 
     def show_table_dialog(self, table_widget, course_type):
@@ -262,49 +275,79 @@ class DataManager:
         return self.data
 
 
-def run_import_program():
-    import_window = DegreeImportDocxProcessMainWindow()
-    import_window.show()
-    return import_window
+class DegreeProgressWidget(QWidget):
+    import_finished = pyqtSignal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.data_manager = DataManager()
+        self.setup_data_manager()
+        self.progress_window = None
+        self.import_window = None
+
+    def setup_data_manager(self):
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        data_file_path = os.path.join(current_dir, "..", "config", "degree_progress.json")
+        self.data_manager.set_file_path(data_file_path)
+
+    def run_import_program(self):
+        self.import_window = DegreeImportDocxProcessMainWindow()
+        self.import_window.show()
+        self.import_window.import_finished.connect(self.on_import_finished)
+
+    def on_import_finished(self):
+        if self.import_window:
+            self.import_window.close()
+        self.import_finished.emit()
+
+    def show_degree_progress(self):
+        if self.data_manager.load_data():
+            self.progress_window = DegreeProgressShowMainWindow(self.data_manager.get_data())
+            self.progress_window.show()
+            return self.progress_window
+        else:
+            QMessageBox.critical(None, "错误", "无法加载数据。")
+            return None
+
+    def start(self):
+        if not self.data_manager.load_data():
+            msg_box = QMessageBox()
+            msg_box.setIcon(QMessageBox.Icon.Question)
+            msg_box.setText("数据加载失败。是否运行文件导入程序？")
+            msg_box.setWindowTitle("数据加载失败")
+            msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+            msg_box.setDefaultButton(QMessageBox.StandardButton.Yes)
+
+            if msg_box.exec() == QMessageBox.StandardButton.Yes:
+                self.run_import_program()
+                self.import_finished.connect(self.show_degree_progress)
+                return None  # 返回None，因为窗口还没有准备好
+            else:
+                return None
+        else:
+            return self.show_degree_progress()
+
+
+def create_degree_progress_window(parent=None):
+    """
+    创建并返回学位进度窗口，可以从其他地方调用而不会导致事件循环冲突。
+
+    :param parent: 父窗口，默认为None
+    :return: DegreeProgressShowMainWindow实例或None
+    """
+    widget = DegreeProgressWidget(parent)
+    return widget.start()
 
 
 def main():
     app = QApplication(sys.argv)
-
-    data_manager = DataManager()
-
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    data_file_path = os.path.join(current_dir, "..", "config", "degree_progress.json")
-    data_manager.set_file_path(data_file_path)
-
-    if not data_manager.load_data():
-        msg_box = QMessageBox()
-        msg_box.setIcon(QMessageBox.Icon.Question)
-        msg_box.setText("数据加载失败。是否运行文件导入程序？")
-        msg_box.setWindowTitle("数据加载失败")
-        msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-        msg_box.setDefaultButton(QMessageBox.StandardButton.Yes)
-
-        if msg_box.exec() == QMessageBox.StandardButton.Yes:
-            import_window = run_import_program()
-            import_window.import_finished.connect(
-                lambda: QTimer.singleShot(0, lambda: continue_main_program(app, data_manager)))
-        else:
-            sys.exit(0)
-    else:
-        continue_main_program(app, data_manager)
-
-    sys.exit(app.exec())
-
-
-def continue_main_program(app, data_manager):
-    if data_manager.load_data():
-        window = DegreeProgressShowMainWindow(data_manager.get_data())
+    window = create_degree_progress_window()
+    if window:
         window.show()
+        sys.exit(app.exec())
     else:
-        QMessageBox.critical(None, "错误", "无法加载数据，程序将退出。")
-        sys.exit(1)
+        sys.exit(0)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
