@@ -268,7 +268,16 @@ class FileDealer:
                 return
 
             try:
-                df = pd.read_excel(file_name)
+                # 尝试读取名为"总表"的工作表
+                try:
+                    df = pd.read_excel(file_name, sheet_name='总表')
+                except ValueError:
+                    # 如果"总表"不存在，读取第一个工作表
+                    xl = pd.ExcelFile(file_name)
+                    first_sheet_name = xl.sheet_names[0]
+                    df = pd.read_excel(file_name, sheet_name=first_sheet_name)
+                    QMessageBox.information(self.parent, "Information",
+                                            f"未找到'总表'工作表，已导入第一个工作表：'{first_sheet_name}'")
             except Exception as e:
                 QMessageBox.critical(self.parent, "Error", f"无法导入文件: {str(e)}")
                 return

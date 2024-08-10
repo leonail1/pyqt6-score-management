@@ -278,20 +278,20 @@ class DataManager:
 class DegreeProgressWidget(QWidget):
     import_finished = pyqtSignal()
 
-    def __init__(self, parent=None):
+    def __init__(self, student_id, parent=None):
         super().__init__(parent)
         self.data_manager = DataManager()
-        self.setup_data_manager()
+        self.setup_data_manager(student_id=student_id)
         self.progress_window = None
         self.import_window = None
 
-    def setup_data_manager(self):
+    def setup_data_manager(self, student_id):
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        data_file_path = os.path.join(current_dir, "..", "config", "degree_progress.json")
+        data_file_path = os.path.join(current_dir, "..", "config", "degree_progress_" + str(student_id) + ".json")
         self.data_manager.set_file_path(data_file_path)
 
-    def run_import_program(self):
-        self.import_window = DegreeImportDocxProcessMainWindow()
+    def run_import_program(self, student_id):
+        self.import_window = DegreeImportDocxProcessMainWindow(student_id=student_id)
         self.import_window.show()
         self.import_window.import_finished.connect(self.on_import_finished)
 
@@ -309,7 +309,7 @@ class DegreeProgressWidget(QWidget):
             QMessageBox.critical(None, "错误", "无法加载数据。")
             return None
 
-    def start(self):
+    def start(self, student_id):
         if not self.data_manager.load_data():
             msg_box = QMessageBox()
             msg_box.setIcon(QMessageBox.Icon.Question)
@@ -319,7 +319,7 @@ class DegreeProgressWidget(QWidget):
             msg_box.setDefaultButton(QMessageBox.StandardButton.Yes)
 
             if msg_box.exec() == QMessageBox.StandardButton.Yes:
-                self.run_import_program()
+                self.run_import_program(student_id=student_id)
                 self.import_finished.connect(self.show_degree_progress)
                 return None  # 返回None，因为窗口还没有准备好
             else:
@@ -328,20 +328,21 @@ class DegreeProgressWidget(QWidget):
             return self.show_degree_progress()
 
 
-def create_degree_progress_window(parent=None):
+def create_degree_progress_window(student_id, parent=None):
     """
     创建并返回学位进度窗口，可以从其他地方调用而不会导致事件循环冲突。
 
+    :param student_id: 学分进度对应的学号
     :param parent: 父窗口，默认为None
     :return: DegreeProgressShowMainWindow实例或None
     """
-    widget = DegreeProgressWidget(parent)
-    return widget.start()
+    widget = DegreeProgressWidget(parent=parent,student_id=student_id)
+    return widget.start(student_id=student_id)
 
 
-def main():
+def __main():
     app = QApplication(sys.argv)
-    window = create_degree_progress_window()
+    window = create_degree_progress_window(student_id=input())
     if window:
         window.show()
         sys.exit(app.exec())
@@ -350,4 +351,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    __main()

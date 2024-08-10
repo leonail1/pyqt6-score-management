@@ -82,10 +82,10 @@ class DocxProcess:
         with open(self.config_path, 'w') as f:
             json.dump(existing_data, f, indent=4, ensure_ascii=False)
 
-    def import_docx(self):
+    def import_docx(self, student_id):
         """
         导入 Word 文档并处理。
-
+        :param student_id: 导入的文档对应的学号
         :return: 处理后的表格和段落信息，如果导入失败则返回 None
         """
         if self.last_file_path and os.path.exists(self.last_file_path):
@@ -95,7 +95,7 @@ class DocxProcess:
                                          QMessageBox.StandardButton.No,
                                          QMessageBox.StandardButton.No)
             if reply == QMessageBox.StandardButton.Yes:
-                return self.process_file(self.last_file_path)
+                return self.process_file(self.last_file_path, student_id=student_id)
 
         file_name, _ = QFileDialog.getOpenFileName(
             self.parent,
@@ -113,9 +113,9 @@ class DocxProcess:
             return None
 
         self.save_last_file_path(file_name)
-        return self.process_file(file_name)
+        return self.process_file(file_name, student_id=student_id)
 
-    def process_file(self, file_name):
+    def process_file(self, file_name, student_id):
         """
         处理 Word 文档文件。
 
@@ -128,7 +128,7 @@ class DocxProcess:
 
             document = Document(docx_content)
             tables_with_paragraphs = self.extract_tables_and_paragraphs(document)
-            self.export_to_json(results=tables_with_paragraphs)
+            self.export_to_json(results=tables_with_paragraphs, student_id=student_id)
 
             QMessageBox.information(self.parent, "成功", f"成功导入文件: {file_name}")
 
@@ -222,13 +222,14 @@ class DocxProcess:
 
         return results
 
-    def export_to_json(self, results, json_filename="degree_progress.json"):
+    def export_to_json(self, results, student_id):
         """
         将结果导出到 JSON 文件。
 
         :param results: 要导出的结果数据
-        :param json_filename: JSON 文件名，默认为 "degree_progress.json"
+        :param student_id: 成绩数据对应的学号
         """
+        json_filename = "degree_progress_" + str(student_id) + ".json"
         config_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'config'))
         os.makedirs(config_dir, exist_ok=True)
 

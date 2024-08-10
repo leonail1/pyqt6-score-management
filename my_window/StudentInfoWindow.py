@@ -152,7 +152,7 @@ class StudentInfoWindow(QDialog):
         self.setLayout(main_layout)
 
     def show_degree_progress(self):
-        progress_window = create_degree_progress_window(self)
+        progress_window = create_degree_progress_window(student_id=self.student_id, parent=self)
         if progress_window:
             progress_window.show()
 

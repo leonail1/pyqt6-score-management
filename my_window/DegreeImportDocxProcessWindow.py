@@ -28,13 +28,14 @@ class DegreeImportDocxProcessMainWindow(QMainWindow):
 
     import_finished = pyqtSignal()  # 添加导入完成信号
 
-    def __init__(self):
+    def __init__(self, student_id):
         """
         初始化DegreeImportDocxProcessMainWindow对象。
 
         创建DocxProcess对象并初始化用户界面。
         """
         super().__init__()
+        self.student_id = student_id
         self.docx_processor = DocxProcess(self)
         self.initUI()
 
@@ -86,7 +87,7 @@ class DegreeImportDocxProcessMainWindow(QMainWindow):
         如果导入成功，发出import_finished信号并关闭窗口。
         如果导入失败，显示错误消息。
         """
-        result = self.docx_processor.import_docx()
+        result = self.docx_processor.import_docx(student_id=self.student_id)
         if result is not None:
             self.import_finished.emit()
             self.close()
@@ -108,6 +109,6 @@ if __name__ == '__main__':
     创建QApplication实例和主窗口，并启动事件循环。
     """
     app = QApplication(sys.argv)
-    main_window = DegreeImportDocxProcessMainWindow()
+    main_window = DegreeImportDocxProcessMainWindow(student_id=input())
     main_window.show()
     sys.exit(app.exec())
