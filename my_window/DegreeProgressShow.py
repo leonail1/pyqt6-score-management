@@ -63,10 +63,19 @@ class CourseTableWidget(QTableWidget):
 
         self.setRowCount(len(data))
         for row, row_data in enumerate(data):
+            has_newline = False
             for col, cell_data in enumerate(row_data):
                 item = QTableWidgetItem(str(cell_data))
                 item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.setItem(row, col, item)
+
+                # 检查是否存在换行符
+                if '\n' in str(cell_data):
+                    has_newline = True
+
+            # 只对存在换行符的行应用自动行高
+            if has_newline:
+                self.resizeRowToContents(row)
 
         self.setSortingEnabled(True)
         self.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -74,6 +83,12 @@ class CourseTableWidget(QTableWidget):
         self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self.setMinimumHeight(150)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+
+        # 调整列宽以适应内容
+        self.resizeColumnsToContents()
+
+        # 设置自动换行
+        self.setWordWrap(True)
 
 
 class TableDialog(QDialog):
