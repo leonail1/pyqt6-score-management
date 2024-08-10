@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QSortFilterProxyModel
 from PyQt6.QtGui import QStandardItemModel, QStandardItem, QFont
 
-from my_code.student_score_analyzer import StudentScoreAnalyzer
+from file_import.student_score_analyzer import StudentScoreAnalyzer
 
 
 class CustomSortFilterProxyModel(QSortFilterProxyModel):

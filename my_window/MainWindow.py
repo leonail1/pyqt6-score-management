@@ -11,9 +11,9 @@ from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QAction
 import pandas as pd
 
-from my_code.action_creator import ActionCreator
-from my_code.table_file_dealer import FileDealer
-from my_code.menu_manager import MenuManager
+from file_import.action_creator import ActionCreator
+from file_import.table_file_dealer import FileDealer
+from file_import.menu_manager import MenuManager
 
 
 class MainWindow(QMainWindow):

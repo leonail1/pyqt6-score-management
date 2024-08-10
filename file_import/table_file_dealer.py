@@ -9,7 +9,6 @@ from PyQt6.QtWidgets import QFileDialog, QMessageBox, QInputDialog, QLineEdit, Q
     QPushButton, QHBoxLayout
 
 from my_window.StudentInfoWindow import StudentInfoWindow
-from scraper.scraper import main as run_grade_scraper
 
 
 class FileDealer:
