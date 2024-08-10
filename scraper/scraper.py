@@ -1,7 +1,7 @@
 import os
 import time
 import pandas as pd
-from PyQt6.QtCore import QTimer
+from PyQt6.QtCore import QTimer, Qt
 from selenium import webdriver
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.chrome.options import Options as ChromeOptions
@@ -16,8 +16,69 @@ from selenium.webdriver.support.ui import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
 from webdriver_manager.microsoft import EdgeChromiumDriverManager
 
-from PyQt6.QtWidgets import QApplication, QDialog, QPushButton, QVBoxLayout, QLabel, QHBoxLayout, QMessageBox, QLineEdit
+from PyQt6.QtWidgets import QApplication, QDialog, QPushButton, QVBoxLayout, QLabel, QHBoxLayout, QMessageBox, \
+    QLineEdit, QWidget
 import sys
+
+
+class WelcomePage(QWidget):
+    def __init__(self, default_username="", default_password=""):
+        super().__init__()
+        self.scraper = GradeScraper()
+        self.initUI(default_username, default_password)
+
+    def initUI(self, default_username="", default_password=""):
+        self.setWindowTitle('成绩爬虫欢迎页面')
+        self.setGeometry(300, 300, 300, 250)
+
+        layout = QVBoxLayout()
+
+        welcome_label = QLabel('欢迎使用成绩爬虫程序', self)
+        welcome_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(welcome_label)
+
+        self.username_input = QLineEdit(self)
+        self.username_input.setPlaceholderText("请输入学号/工号")
+        self.username_input.setText(default_username)
+        layout.addWidget(self.username_input)
+
+        self.password_input = QLineEdit(self)
+        self.password_input.setPlaceholderText("请输入密码")
+        self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.password_input.setText(default_password)
+        layout.addWidget(self.password_input)
+
+        button_layout = QHBoxLayout()
+
+        start_button = QPushButton('开始爬虫', self)
+        start_button.clicked.connect(self.start_scraping)
+        button_layout.addWidget(start_button)
+
+        cancel_button = QPushButton('取消', self)
+        cancel_button.clicked.connect(self.close)
+        button_layout.addWidget(cancel_button)
+
+        layout.addLayout(button_layout)
+
+        self.setLayout(layout)
+
+    def start_scraping(self):
+        username = self.username_input.text()
+        password = self.password_input.text()
+
+        if not username or not password:
+            QMessageBox.warning(self, '错误', '请输入用户名和密码')
+            return
+
+        reply = QMessageBox.question(self, '确认', '确定要开始爬虫操作吗？',
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                                     QMessageBox.StandardButton.No)
+
+        if reply == QMessageBox.StandardButton.Yes:
+            self.close()
+            self.scraper.main(default_username=username, default_password=password)
+        else:
+            QMessageBox.information(self, '取消', '爬虫操作已取消')
 
 
 class LoginDialog(QDialog):
@@ -102,9 +163,13 @@ class TimedMessageBox(QMessageBox):
 
 
 class GradeScraper:
-    def __init__(self, valid_column_headers):
+    def __init__(self):
+        self.valid_column_headers = [
+            "学年学期", "课程名", "课程号", "总成绩", "课序号", "课程类别", "课程性质", "学分",
+            "学时", "修读方式", "是否主修", "考试日期", "绩点", "重修重考", "等级成绩类型", "考试类型",
+            "开课单位", "是否及格", "是否有效"
+        ]
         self.driver = None
-        self.column_headers = valid_column_headers
         self.app = QApplication.instance() or QApplication(sys.argv)
 
     def show_message(self, title, message, timeout=3000):
@@ -134,13 +199,14 @@ class GradeScraper:
         self.driver.get(url)
 
     def input_credentials(self, default_username="", default_password=""):
-        dialog = CredentialsDialog(default_username, default_password)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            username, password = dialog.get_credentials()
-        else:
-            self.show_message("操作取消", "登录操作被取消")
-            return False
+        # dialog = CredentialsDialog(default_username, default_password)
+        # if dialog.exec() == QDialog.DialogCode.Accepted:
+        #     username, password = dialog.get_credentials()
+        # else:
+        #     self.show_message("操作取消", "登录操作被取消")
+        #     return False
 
+        username, password = default_username, default_password
         try:
             # 定位并输入用户名
             username_input = WebDriverWait(self.driver, 10).until(
@@ -210,8 +276,9 @@ class GradeScraper:
                         column_titles = [self.get_element_text(header.find_element(By.TAG_NAME, 'span')) for header in
                                          column_headers]
 
-                        valid_indices = [i for i, title in enumerate(column_titles) if title in self.column_headers]
-                        valid_titles = [title for title in column_titles if title in self.column_headers]
+                        valid_indices = [i for i, title in enumerate(column_titles) if
+                                         title in self.valid_column_headers]
+                        valid_titles = [title for title in column_titles if title in self.valid_column_headers]
 
                         content_table_element = self.wait_for_element(By.XPATH,
                                                                       './/*[starts-with(@id, "contenttableqb-index-table-")]',
@@ -304,18 +371,21 @@ class GradeScraper:
             if self.driver:
                 self.driver.quit()
 
+    def main(self, default_username="", default_password=""):
+        url = ("https://jw.xmu.edu.cn/jwapp/sys/cjcx/*default/index.do?t_s=1723166960886&amp_sec_version_=1&gid_"
+               "=SXBVK1NhazRDMGZOSHpjMWVFSmhUNGJ1ZFRJUGxaRUxpbGpiTHRNZVYyQ044U0VjRi9BcmZCVzdlek5YL25oZHMzeFU2eEZpVWlEcDJ0L3F1Q3ZxL2c9PQ&EMAP_LANG=zh&THEME=cherry#/cjcx")
+        scraper = GradeScraper()
+        scraper.run(url, default_username=default_username, default_password=default_password)
 
-def main():
-    url = ("https://jw.xmu.edu.cn/jwapp/sys/cjcx/*default/index.do?t_s=1723166960886&amp_sec_version_=1&gid_"
-           "=SXBVK1NhazRDMGZOSHpjMWVFSmhUNGJ1ZFRJUGxaRUxpbGpiTHRNZVYyQ044U0VjRi9BcmZCVzdlek5YL25oZHMzeFU2eEZpVWlEcDJ0L3F1Q3ZxL2c9PQ&EMAP_LANG=zh&THEME=cherry#/cjcx")
-    valid_column_headers = [
-        "学年学期", "课程名", "课程号", "总成绩", "课序号", "课程类别", "课程性质", "学分",
-        "学时", "修读方式", "是否主修", "考试日期", "绩点", "重修重考", "等级成绩类型", "考试类型",
-        "开课单位", "是否及格", "是否有效"
-    ]
-    scraper = GradeScraper(valid_column_headers)
-    scraper.run(url, default_username="37220222203691", default_password="mudwa2-kihjar-wipjiF")
+
+def start():
+    app = QApplication(sys.argv)
+
+    welcome = WelcomePage(default_username="37220222203691", default_password="mudwa2-kihjar-wipjiF")
+    welcome.show()
+
+    sys.exit(app.exec())
 
 
 if __name__ == "__main__":
-    main()
+    start()
