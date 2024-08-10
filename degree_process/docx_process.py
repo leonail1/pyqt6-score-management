@@ -172,10 +172,10 @@ class DocxProcess:
 
         return results
 
-    def export_to_json(self, results, json_filename="results.json"):
+    def export_to_json(self, results, json_filename="degree_progress.json"):
         """
+        :param json_filename: 存储json的文件名
         :param results: self.extract_tables_and_paragraphs的返回值
-        :param filename: 存储json的文件名
         """
         # 确保 ../config/ 目录存在
         config_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'config'))
@@ -199,7 +199,7 @@ class DocxProcess:
 
         print(f"Results saved to {file_path}")
 
-    def import_from_json(self, json_filename="results.json"):
+    def import_from_json(self, json_filename="degree_progress.json"):
         config_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'config'))
         file_path = os.path.join(config_dir, json_filename)
 

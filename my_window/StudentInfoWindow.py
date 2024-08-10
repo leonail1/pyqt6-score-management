@@ -41,7 +41,7 @@ class CustomSortFilterProxyModel(QSortFilterProxyModel):
 
 
 class StudentInfoWindow(QDialog):
-    def __init__(self, chosen_window: str, student_id):
+    def __init__(self, student_id):
         super().__init__()
 
         self.data_modified = False
