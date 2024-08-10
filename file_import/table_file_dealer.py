@@ -103,7 +103,7 @@ class FileDealer:
         # QMessageBox.information(self.parent, "加载数据", f"已加载学生 {student_id} 的数据")
 
         # 创建新窗口
-        self.student_info_window = StudentInfoWindow("setup_score_list_view_ui", student_id=student_id)
+        self.student_info_window = StudentInfoWindow(student_id=student_id)
 
         # 设置新窗口为模态：在新窗口退出前不可编辑主窗口（可选）
         self.student_info_window.setModal(False)

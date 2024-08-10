@@ -19,6 +19,8 @@ from PyQt6.QtWidgets import (QTableWidget, QTableWidgetItem, QHeaderView, QSizeP
                              QDialog, QVBoxLayout, QPushButton, QScrollArea, QWidget,
                              QFrame, QApplication)
 
+from my_window.DegreeImportDocxProcessWindow import DegreeImportDocxProcessMainWindow
+
 
 class CourseInfoWidget(QWidget):
     """
@@ -260,7 +262,13 @@ class DataManager:
         return self.data
 
 
-if __name__ == '__main__':
+def run_import_program():
+    import_window = DegreeImportDocxProcessMainWindow()
+    import_window.show()
+    return import_window
+
+
+def main():
     app = QApplication(sys.argv)
 
     data_manager = DataManager()
@@ -269,9 +277,34 @@ if __name__ == '__main__':
     data_file_path = os.path.join(current_dir, "..", "config", "degree_progress.json")
     data_manager.set_file_path(data_file_path)
 
+    if not data_manager.load_data():
+        msg_box = QMessageBox()
+        msg_box.setIcon(QMessageBox.Icon.Question)
+        msg_box.setText("数据加载失败。是否运行文件导入程序？")
+        msg_box.setWindowTitle("数据加载失败")
+        msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        msg_box.setDefaultButton(QMessageBox.StandardButton.Yes)
+
+        if msg_box.exec() == QMessageBox.StandardButton.Yes:
+            import_window = run_import_program()
+            import_window.import_finished.connect(
+                lambda: QTimer.singleShot(0, lambda: continue_main_program(app, data_manager)))
+        else:
+            sys.exit(0)
+    else:
+        continue_main_program(app, data_manager)
+
+    sys.exit(app.exec())
+
+
+def continue_main_program(app, data_manager):
     if data_manager.load_data():
         window = DegreeProgressShowMainWindow(data_manager.get_data())
         window.show()
-        sys.exit(app.exec())
     else:
+        QMessageBox.critical(None, "错误", "无法加载数据，程序将退出。")
         sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()

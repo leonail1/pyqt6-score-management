@@ -7,7 +7,7 @@
 该模块使用PyQt6来创建图形界面。
 """
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import QMainWindow, QApplication, QHBoxLayout, QLabel, QPushButton, QMessageBox, QVBoxLayout, \
     QWidget
 import sys
@@ -25,6 +25,8 @@ class DegreeImportDocxProcessMainWindow(QMainWindow):
 
     这个类创建了一个图形用户界面，允许用户导入和处理Word文档。
     """
+
+    import_finished = pyqtSignal()  # 添加导入完成信号
 
     def __init__(self):
         """
@@ -81,8 +83,22 @@ class DegreeImportDocxProcessMainWindow(QMainWindow):
         处理导入按钮点击事件。
 
         调用DocxProcess对象的import_docx方法来导入和处理Word文档。
+        如果导入成功，发出import_finished信号并关闭窗口。
+        如果导入失败，显示错误消息。
         """
-        self.docx_processor.import_docx()
+        result = self.docx_processor.import_docx()
+        if result is not None:
+            self.import_finished.emit()
+            self.close()
+        else:
+            QMessageBox.critical(self, "导入失败", "文档导入失败，请检查文件格式或重试。")
+
+    def closeEvent(self, event):
+        """
+        重写closeEvent方法，在窗口关闭时发出import_finished信号。
+        """
+        self.import_finished.emit()
+        event.accept()
 
 
 if __name__ == '__main__':
