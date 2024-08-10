@@ -18,6 +18,7 @@ sys.path.append(os.getcwd())
 
 from degree_process.docx_process import DocxProcess
 
+
 class DegreeImportDocxProcessMainWindow(QMainWindow):
     """
     Word文档导入工具的主窗口类。
@@ -82,6 +83,7 @@ class DegreeImportDocxProcessMainWindow(QMainWindow):
         调用DocxProcess对象的import_docx方法来导入和处理Word文档。
         """
         self.docx_processor.import_docx()
+
 
 if __name__ == '__main__':
     """

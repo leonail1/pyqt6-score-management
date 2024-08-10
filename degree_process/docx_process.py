@@ -177,6 +177,8 @@ class DocxProcess:
         paragraphs = list(document.paragraphs)
         tables = list(document.tables)
 
+        desired_columns = ['课程名称', '修读形式', '学分', '总学时', '开课学年', '开课学期']
+
         text = [p.text for p in paragraphs]
         relevant_paragraph = [content for content in text if
                               any(keyword in content for keyword in ["最低选修学分数", "最低必修学分数"])]
@@ -195,17 +197,15 @@ class DocxProcess:
         tables = [table for i, table in enumerate(tables) if i not in delete_index]
 
         for i, table in enumerate(tables):
-            header_row = [cell.text.strip() for cell in table.rows[0].cells]
+            original_header_row = [cell.text.strip() for cell in table.rows[0].cells]
 
-            course_number_index = None
-            if "课程号" in header_row:
-                course_number_index = header_row.index("课程号")
+            # 获取所需列的索引
+            column_indices = [original_header_row.index(col) for col in desired_columns if col in original_header_row]
 
-            if course_number_index is not None:
-                header_row.pop(course_number_index)
-
+            # 只保留所需的列
+            header_row = [original_header_row[i] for i in column_indices]
             table_data = [
-                [cell.text.strip() for j, cell in enumerate(row.cells) if j != course_number_index]
+                [row.cells[i].text.strip() for i in column_indices]
                 for row in table.rows[1:]
             ]
 

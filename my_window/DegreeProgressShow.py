@@ -58,20 +58,15 @@ class CourseTableWidget(QTableWidget):
     def __init__(self, header, data):
         super().__init__()
 
-        desired_columns = ['课程名称', '修读形式', '学分', '总学时', '开课学年', '开课学期']
-
-        column_indices = [header.index(col) for col in desired_columns if col in header]
-
-        self.setColumnCount(len(column_indices))
-        self.setHorizontalHeaderLabels([header[i] for i in column_indices])
+        self.setColumnCount(len(header))
+        self.setHorizontalHeaderLabels(header)
 
         self.setRowCount(len(data))
         for row, row_data in enumerate(data):
-            for col, index in enumerate(column_indices):
-                if index < len(row_data):
-                    item = QTableWidgetItem(str(row_data[index]))
-                    item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                    self.setItem(row, col, item)
+            for col, cell_data in enumerate(row_data):
+                item = QTableWidgetItem(str(cell_data))
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                self.setItem(row, col, item)
 
         self.setSortingEnabled(True)
         self.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
