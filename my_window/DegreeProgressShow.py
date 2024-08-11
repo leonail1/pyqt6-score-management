@@ -1,13 +1,3 @@
-"""
-这个模块实现了一个学位进度展示工具的图形用户界面。
-主要功能包括：
-1. 从JSON文件加载课程信息数据
-2. 展示各类课程的学分信息和完成进度
-3. 显示课程详细信息的表格
-
-该模块使用PyQt6来创建图形界面。
-"""
-
 import json
 import os.path
 import sys
@@ -102,7 +92,8 @@ class TableDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle(f"{course_type}详情")
         self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
-        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        # 移除 WA_DeleteOnClose 属性
+        # self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose) 
 
         layout = QVBoxLayout(self)
 
@@ -155,7 +146,7 @@ class DegreeProgressShowMainWindow(QWidget):
         scroll_content = QWidget()
         scroll_layout = QVBoxLayout(scroll_content)
 
-        self.table_widgets = []
+        self.table_dialogs = {} # 使用字典存储对话框，避免重复创建
 
         for i, item in enumerate(data):
             frame = QFrame()
@@ -170,10 +161,13 @@ class DegreeProgressShowMainWindow(QWidget):
             frame_layout.addWidget(show_details_button)
 
             table_widget = CourseTableWidget(item['table']['header'], item['table']['data'])
-            self.table_widgets.append((table_widget, item['info'][0]))
+            # 创建对话框并存储
+            table_dialog = TableDialog(self, table_widget, item['info'][0]) 
+            self.table_dialogs[item['info'][0]] = table_dialog
 
             show_details_button.clicked.connect(
-                lambda checked, w=table_widget, t=item['info'][0]: self.show_table_dialog(w, t))
+                lambda checked, course_type=item['info'][0]: self.show_table_dialog(course_type)
+            )
 
             scroll_layout.addWidget(frame)
 
@@ -203,9 +197,8 @@ class DegreeProgressShowMainWindow(QWidget):
 
         self.setLayout(main_layout)
 
-    def show_table_dialog(self, table_widget, course_type):
-        dialog = TableDialog(self, table_widget, course_type)
-        dialog.setModal(True)
+    def show_table_dialog(self, course_type):
+        dialog = self.table_dialogs[course_type]  # 获取对应的对话框
         dialog.show()
 
 
@@ -336,13 +329,13 @@ def create_degree_progress_window(student_id, parent=None):
     :param parent: 父窗口，默认为None
     :return: DegreeProgressShowMainWindow实例或None
     """
-    widget = DegreeProgressWidget(parent=parent,student_id=student_id)
+    widget = DegreeProgressWidget(parent=parent, student_id=student_id)
     return widget.start(student_id=student_id)
 
 
 def __main():
     app = QApplication(sys.argv)
-    window = create_degree_progress_window(student_id=input())
+    window = create_degree_progress_window(student_id="37220222203691")
     if window:
         window.show()
         sys.exit(app.exec())

@@ -109,6 +109,6 @@ if __name__ == '__main__':
     创建QApplication实例和主窗口，并启动事件循环。
     """
     app = QApplication(sys.argv)
-    main_window = DegreeImportDocxProcessMainWindow(student_id=input())
+    main_window = DegreeImportDocxProcessMainWindow(student_id="37220222203691")
     main_window.show()
     sys.exit(app.exec())
