@@ -120,8 +120,15 @@ class DocxProcess:
         处理 Word 文档文件。
 
         :param file_name: 要处理的文件路径
+        :param student_id: 学生ID
         :return: 处理后的表格和段落信息，如果处理失败则返回 None
         """
+        json_file_path = os.path.join("..", "data", f"{student_id}.json")
+
+        if not os.path.exists(json_file_path):
+            QMessageBox.warning(self.parent, "警告", "未找到成绩数据，请在初始界面进行导入")
+            return None
+
         try:
             with open(file_name, 'rb') as file:
                 docx_content = BytesIO(file.read())
@@ -132,7 +139,7 @@ class DocxProcess:
 
             QMessageBox.information(self.parent, "成功", f"成功导入文件: {file_name}")
 
-            return tables_with_paragraphs
+            return tables_with_paragraphs, json_file_path
 
         except Exception as e:
             QMessageBox.critical(self.parent, "错误", f"导入文件时发生错误: {str(e)}")
