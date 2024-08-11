@@ -1,8 +1,10 @@
 import json
 import os.path
 import sys
+import traceback
 
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
+from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (QProgressBar,
                              QLabel, QMessageBox, QHBoxLayout)
 from PyQt6.QtWidgets import (QTableWidget, QTableWidgetItem, QHeaderView, QSizePolicy,
@@ -197,10 +199,37 @@ class DegreeProgressShowMainWindow(QWidget):
             info_widget = CourseInfoWidget(item['info'])  # 创建课程信息小部件
             frame_layout.addWidget(info_widget)  # 将课程信息小部件添加到框架布局
 
+            # 获取表格头部和数据
+            headers = item['table']['header']
+            table_data = item['table']['data']
+
+            # 找到课程名称列的索引
+            course_name_index = headers.index("课程名称") if "课程名称" in headers else -1
+
+            # 检查是否需要显示警告
+            warning_needed = False
+            if course_name_index != -1:
+                warning_needed = any(
+                    "体育" in row[course_name_index] or "大学英语" in row[course_name_index] for row in table_data)
+
+            if warning_needed:
+                warning_label = QLabel("警告：体育/大学英语课程默认为\"已修读\"")
+                warning_label.setStyleSheet("color: red; font-weight: bold;")
+                frame_layout.addWidget(warning_label)
+
             show_details_button = QPushButton(f"显示{item['info'][0]}详情")  # 创建显示详情按钮
             frame_layout.addWidget(show_details_button)  # 将按钮添加到框架布局
 
-            table_widget = CourseTableWidget(item['table']['header'], item['table']['data'])  # 创建课程表格
+            table_widget = CourseTableWidget(headers, table_data)  # 创建课程表格
+
+            # 如果有体育或大学英语课程，将其标记为黄色背景
+            if course_name_index != -1:
+                for row in range(table_widget.rowCount()):
+                    course_name = table_widget.item(row, course_name_index).text()
+                    if "体育" in course_name or "大学英语" in course_name:
+                        for col in range(table_widget.columnCount()):
+                            table_widget.item(row, col).setBackground(QColor(255, 255, 0))  # 黄色背景
+
             # 创建对话框并存储
             table_dialog = TableDialog(self, table_widget, item['info'][0])
             self.table_dialogs[item['info'][0]] = table_dialog
@@ -238,6 +267,11 @@ class DegreeProgressShowMainWindow(QWidget):
         main_layout.addLayout(button_layout)  # 将按钮布局添加到主布局
 
         self.setLayout(main_layout)  # 将主布局应用到窗口
+
+    def show_table_dialog(self, course_type):
+        """显示对应课程类型的表格对话框"""
+        if course_type in self.table_dialogs:
+            self.table_dialogs[course_type].show()
 
     def show_table_dialog(self, course_type):
         """
@@ -345,14 +379,21 @@ class DegreeProgressWidget(QWidget):
         self.data_manager.set_file_path(data_file_path)
 
     def run_import_program(self, student_id):
-        """
-        运行文件导入程序。
+        try:
+            self.import_window = DegreeImportDocxProcessMainWindow(student_id=student_id)
+            self.import_window.setWindowModality(Qt.WindowModality.ApplicationModal)
+            self.import_window.import_finished.connect(self.on_import_finished)
+            self.current_import_window = self.import_window
+            self.show_import_window()
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"启动导入程序时发生错误：{str(e)}")
 
-        :param student_id: 学生ID
-        """
-        self.import_window = DegreeImportDocxProcessMainWindow(student_id=student_id)
-        self.import_window.show()
-        self.import_window.import_finished.connect(self.on_import_finished)  # 连接导入完成信号到处理函数
+    def show_import_window(self):
+        if hasattr(self, 'import_window'):
+            self.import_window.show()
+            QApplication.processEvents()
+        else:
+            print("错误：import_window 不存在")
 
     def on_import_finished(self):
         """

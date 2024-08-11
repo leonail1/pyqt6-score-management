@@ -35,9 +35,13 @@ class DegreeImportDocxProcessMainWindow(QMainWindow):
         创建DocxProcess对象并初始化用户界面。
         """
         super().__init__()
+        # print(f"DegreeImportDocxProcessMainWindow.__init__ 被调用，学生ID: {student_id}")
         self.student_id = student_id
         self.docx_processor = DocxProcess(self)
         self.initUI()
+        # print("DegreeImportDocxProcessMainWindow 初始化完成")
+        # print(f"窗口大小: {self.size()}")
+        # print(f"窗口位置: {self.pos()}")
 
     def initUI(self):
         """
@@ -95,9 +99,6 @@ class DegreeImportDocxProcessMainWindow(QMainWindow):
             QMessageBox.critical(self, "导入失败", "文档导入失败，请检查文件格式或重试。")
 
     def closeEvent(self, event):
-        """
-        重写closeEvent方法，在窗口关闭时发出import_finished信号。
-        """
         self.import_finished.emit()
         event.accept()
 

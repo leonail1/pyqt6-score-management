@@ -21,7 +21,7 @@ import re
 from typing import Union
 
 import pandas as pd
-from PyQt6.QtWidgets import QFileDialog, QMessageBox
+from PyQt6.QtWidgets import QFileDialog, QMessageBox, QDialog, QVBoxLayout, QLabel, QPushButton
 from docx import Document
 
 sys.path.append(os.getcwd())
@@ -115,6 +115,8 @@ class DocxProcess:
         self.save_last_file_path(file_name)
         return self.process_file(file_name, student_id=student_id)
 
+    import os
+
     def process_file(self, file_name, student_id):
         """
         处理 Word 文档文件。
@@ -123,7 +125,14 @@ class DocxProcess:
         :param student_id: 学生ID
         :return: 处理后的表格和段落信息，如果处理失败则返回 None
         """
-        json_file_path = os.path.join("..", "data", f"{student_id}.json")
+        # 获取当前脚本的目录
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+
+        # 构建相对于脚本的 JSON 文件路径
+        json_file_path = os.path.join(script_dir, "..", "data", f"{student_id}.json")
+
+        # 将路径标准化，解析任何 '..' 和 '.'
+        json_file_path = os.path.normpath(json_file_path)
 
         if not os.path.exists(json_file_path):
             QMessageBox.warning(self.parent, "警告", "未找到成绩数据，请在初始界面进行导入")
@@ -178,8 +187,10 @@ class DocxProcess:
         """
         从 Word 文档中提取表格和段落信息。
         读取成绩信息，和培养方案合并。
+        体育、大学英语课程默认已修读
 
         :param document: Word 文档对象
+        :param json_file_path: JSON 文件路径
         :return: 包含表格数据和相关信息的列表
         """
         results = []
@@ -192,6 +203,28 @@ class DocxProcess:
         relevant_paragraph = [content for content in text if
                               any(keyword in content for keyword in ["最低选修学分数", "最低必修学分数"])]
         score_need = self.extract_credit_info(relevant_paragraph)
+
+        # 检查 JSON 文件是否存在
+        if not os.path.exists(json_file_path):
+            dialog = MessageDialog("教务成绩数据不存在，请在主界面进行导入")
+            dialog.exec()
+            return results
+
+        # 读取 JSON 文件
+        try:
+            with open(json_file_path, 'r', encoding='utf-8') as f:
+                json_data = json.load(f)
+        except json.JSONDecodeError:
+            dialog = MessageDialog("无法解析教务成绩数据，请在主界面重新导入")
+            dialog.exec()
+            return results
+        except Exception as e:
+            dialog = MessageDialog(f"读取教务成绩数据时发生错误：{str(e)}")
+            dialog.exec()
+            return results
+
+        # 提取课程信息
+        course_info = {course['课程名']: course for course in json_data[1:]}
 
         delete_index = []
         for i, table in enumerate(tables):
@@ -209,17 +242,40 @@ class DocxProcess:
             original_header_row = [cell.text.strip() for cell in table.rows[0].cells]
 
             # 获取所需列的索引
-            column_indices = [original_header_row.index(col) for col in desired_columns if col in original_header_row]
+            column_indices = {col: original_header_row.index(col) for col in desired_columns if
+                              col in original_header_row}
 
-            # 只保留所需的列
-            header_row = [original_header_row[i] for i in column_indices]
-            table_data = [
-                [row.cells[i].text.strip() for i in column_indices]
-                for row in table.rows[1:]
-            ]
+            if '课程名称' not in column_indices:
+                dialog = MessageDialog(f"警告: 表格 {i + 1} 中没有找到 '课程名称' 列")
+                dialog.exec()
+                continue
 
-            print(f"表格大小: {len(table_data)} 行 x {len(header_row)} 列")
-            print("列名:", ", ".join(header_row))
+            # 只保留所需的列，并添加新列
+            header_row = [col for col in desired_columns if col in column_indices] + ["状态", "成绩", "绩点"]
+            table_data = []
+
+            for row in table.rows[1:]:
+                row_data = [row.cells[column_indices[col]].text.strip() for col in desired_columns if
+                            col in column_indices]
+                course_name = row.cells[column_indices['课程名称']].text.strip()
+
+                if course_name in course_info:
+                    # 课程已修读
+                    status = "已修读"
+                    score = course_info[course_name].get('总成绩', '')
+                    grade_point = course_info[course_name].get('绩点', '')
+                elif course_name in ["体育", "大学英语"]:
+                    status = "已修读"
+                    score = ''
+                    grade_point = ''
+                else:
+                    # 课程未修读或正在修读（这里简单处理为未修读）
+                    status = "未修读"
+                    score = ''
+                    grade_point = ''
+
+                row_data.extend([status, score, grade_point])
+                table_data.append(row_data)
 
             results.append({
                 'table': {
@@ -284,3 +340,16 @@ class DocxProcess:
 
         print(f"Results loaded from {file_path}")
         return results
+
+
+class MessageDialog(QDialog):
+    def __init__(self, message):
+        super().__init__()
+        self.setWindowTitle("提示")
+        layout = QVBoxLayout()
+        label = QLabel(message)
+        button = QPushButton("确定")
+        button.clicked.connect(self.accept)
+        layout.addWidget(label)
+        layout.addWidget(button)
+        self.setLayout(layout)
