@@ -115,6 +115,15 @@ class StudentInfoWindow(QDialog):
                 self.table.horizontalHeader().setDefaultAlignment(Qt.AlignmentFlag.AlignCenter)
 
             main_layout.addWidget(self.table)
+
+            # 添加加权绩点和加权分数的标签
+            self.gpa_label = QLabel()
+            self.weighted_score_label = QLabel()
+            main_layout.addWidget(self.gpa_label)
+            main_layout.addWidget(self.weighted_score_label)
+
+            # 初始计算并显示加权绩点和加权分数
+            self.update_weighted_calculations()
         else:
             error_label = QLabel("没有成绩数据")
             main_layout.addWidget(error_label)
@@ -175,6 +184,9 @@ class StudentInfoWindow(QDialog):
         # 设置一个标志，表示数据已被修改
         self.data_modified = True
 
+        # 更新加权计算结果
+        self.update_weighted_calculations()
+
     def show_filter_dialog(self, column):
         dialog = QDialog(self)
         dialog.setWindowTitle(f"过滤 {self.model.headerData(column, Qt.Orientation.Horizontal)}")
@@ -194,12 +206,15 @@ class StudentInfoWindow(QDialog):
 
         # 如果这个列还没有保存的状态，初始化为全选
         if column not in self.column_filter_states:
-            self.column_filter_states[column] = {value: True for value in unique_values}
+            self.column_filter_states[column] = {}
 
         # 添加所有选项到列表中，根据保存的状态设置选中状态
         for value in unique_values:
             item = QListWidgetItem(value)
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            # 如果值不在字典中，默认设置为选中状态
+            if value not in self.column_filter_states[column]:
+                self.column_filter_states[column][value] = True
             item.setCheckState(
                 Qt.CheckState.Checked if self.column_filter_states[column][value] else Qt.CheckState.Unchecked)
             list_widget.addItem(item)
@@ -240,6 +255,9 @@ class StudentInfoWindow(QDialog):
         # 应用过滤器
         self.proxy_model.setColumnFilter(column, selected_values)
 
+        # 更新加权计算结果
+        self.update_weighted_calculations()
+
         dialog.accept()
 
     def closeEvent(self, event):
@@ -263,3 +281,77 @@ class StudentInfoWindow(QDialog):
                 event.ignore()  # 取消关闭操作
         else:
             event.accept()  # 如果数据没有被修改，直接关闭窗口
+
+    def update_weighted_calculations(self):
+        total_credits = 0
+        total_gpa_points = 0
+        total_score_points = 0
+
+        # 找到对应的列索引
+        credit_index = -1
+        gpa_index = -1
+        score_index = -1
+        course_type_index = -1
+
+        for col in range(self.model.columnCount()):
+            header = self.model.headerData(col, Qt.Orientation.Horizontal)
+            if header == "学分":
+                credit_index = col
+            elif header in ["GPA", "绩点"]:
+                gpa_index = col
+            elif header in ["总成绩", "学分成绩"]:
+                score_index = col
+            elif header == "课程性质":
+                course_type_index = col
+
+        if credit_index == -1:
+            self.gpa_label.setText("加权绩点: 未找到学分列")
+            self.weighted_score_label.setText("加权分数: 未找到学分列")
+            return
+
+        for row in range(self.proxy_model.rowCount()):
+            # 检查课程性质
+            if course_type_index != -1:
+                course_type = self.proxy_model.data(self.proxy_model.index(row, course_type_index))
+                if course_type == "校选":
+                    continue  # 跳过校选课程
+
+            credit = float(self.proxy_model.data(self.proxy_model.index(row, credit_index)) or 0)
+
+            if score_index != -1:
+                score = self.proxy_model.data(self.proxy_model.index(row, score_index))
+                if score == "合格":
+                    continue  # 跳过成绩为"合格"的课程
+                try:
+                    score = float(score or 0)
+                    total_score_points += score * credit
+                    total_credits += credit
+                except ValueError:
+                    # 如果成绩无法转换为浮点数，跳过这门课程
+                    continue
+
+            if gpa_index != -1:
+                gpa = self.proxy_model.data(self.proxy_model.index(row, gpa_index))
+                try:
+                    gpa = float(gpa or 0)
+                    total_gpa_points += gpa * credit
+                except ValueError:
+                    # 如果GPA无法转换为浮点数，跳过GPA计算
+                    pass
+
+        if total_credits > 0:
+            weighted_gpa = total_gpa_points / total_credits if gpa_index != -1 else None
+            weighted_score = total_score_points / total_credits if score_index != -1 else None
+
+            if weighted_gpa is not None:
+                self.gpa_label.setText(f"加权绩点: {weighted_gpa:.5f}")
+            else:
+                self.gpa_label.setText("加权绩点: 未找到GPA或绩点列")
+
+            if weighted_score is not None:
+                self.weighted_score_label.setText(f"加权分数: {weighted_score:.5f}")
+            else:
+                self.weighted_score_label.setText("加权分数: 未找到总成绩或学分成绩列")
+        else:
+            self.gpa_label.setText("加权绩点: N/A (没有有效的课程)")
+            self.weighted_score_label.setText("加权分数: N/A (没有有效的课程)")

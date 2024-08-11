@@ -259,13 +259,18 @@ class DocxProcess:
                             col in column_indices]
                 course_name = row.cells[column_indices['课程名称']].text.strip()
 
-                if course_name in course_info:
+                if course_name in course_info and course_name != "小计":
                     # 课程已修读
                     status = "已修读"
                     score = course_info[course_name].get('总成绩', '')
                     grade_point = course_info[course_name].get('绩点', '')
-                elif course_name in ["体育", "大学英语"]:
+                elif course_name in ["体育", "大学英语", "跨学科基本课程", "形势与政策",
+                                     "新时代中国特色社会主义劳动教育"]:
                     status = "已修读"
+                    score = ''
+                    grade_point = ''
+                elif course_name == "小计":
+                    status = ''
                     score = ''
                     grade_point = ''
                 else:

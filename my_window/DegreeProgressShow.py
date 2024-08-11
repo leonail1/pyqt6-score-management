@@ -23,11 +23,12 @@ class CourseInfoWidget(QWidget):
     包括课程类型、必修学分、选修学分和完成进度条。
     """
 
-    def __init__(self, info):
+    def __init__(self, info, table_data):
         """
         初始化CourseInfoWidget。
 
         :param info: 包含课程类型、必修学分和选修学分的元组，例如：("公共基础课", 10, 6)
+        :param table_data: 课程详细信息，字典形式，包含 'header' 和 'data' 两个键
         """
         super().__init__()
 
@@ -42,12 +43,45 @@ class CourseInfoWidget(QWidget):
         # 添加选修学分标签
         layout.addWidget(QLabel(f"选修学分: {elective}"))
 
+        # 计算已修读的学分
+        completed_credits = self.calculate_completed_credits(table_data)
+
         progress = QProgressBar()  # 创建进度条
         progress.setMaximum(required + elective)  # 设置进度条最大值
-        progress.setValue(required)  # 设置进度条当前值
+        progress.setValue(completed_credits)  # 设置进度条当前值为已修读的学分
         layout.addWidget(progress)  # 添加进度条到布局
 
+        # 添加已修读学分标签
+        layout.addWidget(QLabel(f"已修读学分: {completed_credits}"))
+
         self.setLayout(layout)  # 将布局应用到小部件
+
+    def calculate_completed_credits(self, table_data):
+        """
+        计算已修读的学分总和。
+
+        :param table_data: 课程详细信息，字典形式，包含 'header' 和 'data' 两个键
+        :return: 已修读的学分总和
+        """
+        headers = table_data['header']
+        data = table_data['data']
+
+        # 找到"学分"和"修读状态"列的索引
+        credit_index = headers.index("学分") if "学分" in headers else -1
+        status_index = headers.index("状态") if "状态" in headers else -1
+
+        completed_credits = 0
+
+        if credit_index != -1 and status_index != -1:
+            for row in data:
+                if row[status_index] == "已修读":
+                    try:
+                        completed_credits += float(row[credit_index])
+                    except ValueError:
+                        # 如果学分不能转换为浮点数，就忽略这一行
+                        pass
+
+        return completed_credits
 
 
 class CourseTableWidget(QTableWidget):
@@ -196,7 +230,7 @@ class DegreeProgressShowMainWindow(QWidget):
             frame.setFrameShadow(QFrame.Shadow.Raised)  # 设置框架阴影
             frame_layout = QVBoxLayout(frame)  # 使用垂直布局
 
-            info_widget = CourseInfoWidget(item['info'])  # 创建课程信息小部件
+            info_widget = CourseInfoWidget(item['info'], item['table'])  # 创建课程信息小部件
             frame_layout.addWidget(info_widget)  # 将课程信息小部件添加到框架布局
 
             # 获取表格头部和数据
@@ -207,14 +241,27 @@ class DegreeProgressShowMainWindow(QWidget):
             course_name_index = headers.index("课程名称") if "课程名称" in headers else -1
 
             # 检查是否需要显示警告
-            warning_needed = False
-            if course_name_index != -1:
-                warning_needed = any(
-                    "体育" in row[course_name_index] or "大学英语" in row[course_name_index] for row in table_data)
+            warning_courses = {
+                "体育": "体育课程默认为\"已修读\"",
+                "大学英语": "大学英语课程默认为\"已修读\"",
+                "跨学科基本课程": "跨学科基本课程默认为\"已修读\"",
+                "形势与政策": "形势与政策课程默认为\"已修读\"",
+                "新时代中国特色社会主义劳动教育": "新时代中国特色社会主义劳动教育课程默认为\"已修读\""
+            }
 
-            if warning_needed:
-                warning_label = QLabel("警告：体育/大学英语课程默认为\"已修读\"")
+            warnings = []
+            if course_name_index != -1:
+                for row in table_data:
+                    course_name = row[course_name_index]
+                    for key in warning_courses:
+                        if key in course_name and warning_courses[key] not in warnings:
+                            warnings.append(warning_courses[key])
+
+            if warnings:
+                warning_text = "警告：\n" + "\n".join(warnings)
+                warning_label = QLabel(warning_text)
                 warning_label.setStyleSheet("color: red; font-weight: bold;")
+                warning_label.setWordWrap(True)  # 允许文本换行
                 frame_layout.addWidget(warning_label)
 
             show_details_button = QPushButton(f"显示{item['info'][0]}详情")  # 创建显示详情按钮
@@ -222,11 +269,14 @@ class DegreeProgressShowMainWindow(QWidget):
 
             table_widget = CourseTableWidget(headers, table_data)  # 创建课程表格
 
-            # 如果有体育或大学英语课程，将其标记为黄色背景
+            # 定义需要标记为黄色背景的课程
+            special_courses = ["体育", "大学英语", "跨学科基本课程", "形势与政策", "新时代中国特色社会主义劳动教育"]
+
+            # 如果有特殊课程，将其标记为黄色背景
             if course_name_index != -1:
                 for row in range(table_widget.rowCount()):
                     course_name = table_widget.item(row, course_name_index).text()
-                    if "体育" in course_name or "大学英语" in course_name:
+                    if any(special_course in course_name for special_course in special_courses):
                         for col in range(table_widget.columnCount()):
                             table_widget.item(row, col).setBackground(QColor(255, 255, 0))  # 黄色背景
 
