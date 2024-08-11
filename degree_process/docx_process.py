@@ -134,7 +134,8 @@ class DocxProcess:
                 docx_content = BytesIO(file.read())
 
             document = Document(docx_content)
-            tables_with_paragraphs = self.extract_tables_and_paragraphs(document)
+            tables_with_paragraphs = self.extract_tables_and_paragraphs(document=document,
+                                                                        json_file_path=json_file_path)
             self.export_to_json(results=tables_with_paragraphs, student_id=student_id)
 
             QMessageBox.information(self.parent, "成功", f"成功导入文件: {file_name}")
@@ -173,9 +174,10 @@ class DocxProcess:
 
         return credit_info
 
-    def extract_tables_and_paragraphs(self, document):
+    def extract_tables_and_paragraphs(self, document, json_file_path):
         """
         从 Word 文档中提取表格和段落信息。
+        读取成绩信息，和培养方案合并。
 
         :param document: Word 文档对象
         :return: 包含表格数据和相关信息的列表

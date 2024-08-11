@@ -283,24 +283,27 @@ class FileDealer:
                 return
 
         # 特殊处理的列
-        special_columns = ['总成绩', '课序号', '学分', '学时', '绩点', '等级成绩']
+        special_columns = ['总成绩', '学分', '学时', '绩点', '等级成绩']
 
-        def convert_to_float(value):
+        def convert_to_float_or_string(value):
             if pd.isna(value):
                 return -1.0
             if isinstance(value, str) and value.strip() == '合格':
-                return -1.0
+                return '合格'
             try:
                 return float(value)
             except ValueError:
-                return -1.0
+                return value  # 如果无法转换为float，则返回原始值
 
         # 处理所有列
         data = {}
         for col in df.columns:
             if col in special_columns:
                 # 特殊处理这些列
-                data[col] = df[col].apply(convert_to_float).tolist()
+                if col in ['总成绩', '等级成绩']:
+                    data[col] = df[col].apply(convert_to_float_or_string).tolist()
+                else:
+                    data[col] = df[col].apply(convert_to_float_or_string).tolist()
             else:
                 # 其他列保持原样，但空值转为空字符串
                 data[col] = df[col].fillna('').astype(str).tolist()
